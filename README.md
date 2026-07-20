@@ -5,82 +5,62 @@
 ## 项目结构
 
 ```
-AgentCoMonitor/
-├── agent_monitor/          # 通用监控平台（核心交付）
-│   ├── core/               # 四大监控模块
-│   ├── adapters/           # 框架适配器（接口 + LangGraph 实现）
-│   ├── api/                # FastAPI + WebSocket
-│   └── db/                 # 数据模型 + Alembic 迁移
-├── demo_advisory/          # 金融投顾 Demo（被监控对象）
-│   ├── agents/             # 6 个业务 Agent
-│   ├── mock_data/          # Mock 股票数据
-│   └── prompts/            # System Prompt 模板
-├── dashboard/              # Web 前端 (React + TypeScript)
-├── tests/                  # 测试
-│   ├── unit/               # 单元测试
-│   └── integration/        # 集成测试
-├── docs/                   # 文档
-└── planning/               # 项目规划
+agent_monitor/          # Part 1: 通用监控平台（核心交付）
+├── core/
+│   ├── models.py       # TraceRecord 通用数据模型
+│   ├── collector.py    # 模块一：执行监控采集
+│   ├── anomaly.py      # 模块二：异常检测（三层扫描）
+│   ├── quality.py      # 模块三：质量评估（五维度 + LLM-as-Judge）
+│   ├── optimizer.py    # 模块四：结果筛选优化
+│   └── llm_client.py   # LLM 客户端（OpenAI 兼容接口）
+├── adapters/
+│   ├── base.py         # MonitoringAdapter 抽象接口
+│   └── langgraph.py    # LangGraph 适配器
+├── api/                # FastAPI + WebSocket（待实现）
+├── db/
+│   ├── models.py       # 5 张 ORM 表
+│   ├── session.py      # 异步会话 + Neon SSL
+│   └── migrations/     # Alembic
+└── config.py           # pydantic-settings
+
+demo_advisory/          # Part 2: 金融投顾 Demo（待实现）
+├── agents/             # 6 个业务 Agent
+├── mock_data/          # Mock 股票数据
+└── prompts/            # System Prompt 模板
+
+dashboard/              # Web 前端 (Phase 4)
+tests/                  # 25 个测试（16 单元 + 2 集成 + LLM）
+docs/                   # 设计文档
 ```
 
 ## 快速开始
 
-### 1. 环境准备
-
 ```bash
-# 克隆项目
-git clone <repo-url>
+git clone https://github.com/xiejiani1207/AgentCoMonitor.git
 cd AgentCoMonitor
-
-# 安装依赖
-make install            # 核心依赖
-make dev-install        # 含 ML 依赖（sentence-transformers）
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入 Neon 数据库连接字符串和 LLM API Key
+cp .env.example .env          # 编辑填入 DB 连接和 LLM API Key
+pip install -e ".[dev,ml]"
+make migrate                   # 初始化数据库
+python demo_pipeline.py        # 跑 Demo 验证全链路
 ```
 
-### 2. 数据库
-
-**选项 A：本地 Docker（开发）**
-```bash
-make db-up
-make migrate
-```
-
-**选项 B：Neon（生产/Demo）**
-在 `.env` 中配置 Neon 连接字符串后：
-```bash
-make migrate
-```
-
-### 3. 运行
+## 测试与 CI
 
 ```bash
-# 启动 API 服务
-uvicorn agent_monitor.api.main:app --reload
-
-# 运行 Demo Agent 链
-python -m demo_advisory.graph
+make test        # 全部测试（25 个）
+make test-unit   # 单元测试
+make lint        # ruff 代码检查
 ```
 
-### 4. 测试
-
-```bash
-make test                # 全部测试
-make test-unit           # 仅单元测试
-make lint                # 代码检查
-make format              # 代码格式化
-```
+CI/CD: GitHub Actions — push 自动跑 test + lint。
 
 ## 技术栈
 
 | 层级 | 技术 |
 |------|------|
-| Agent 框架 | LangGraph |
+| Agent 框架 | LangGraph (待对接 Demo) |
 | 后端 | Python + FastAPI |
-| 前端 | React + TypeScript + AntV G6 + ECharts |
-| 实时通信 | WebSocket |
-| 数据库 | PostgreSQL (Neon / Docker) |
+| 前端 | React + TypeScript + AntV G6 + ECharts (Phase 4) |
+| 数据库 | PostgreSQL (Neon 免费层 / Docker) |
+| LLM | OpenAI 兼容接口 (DeepSeek / GPT) |
 | CI/CD | GitHub Actions |

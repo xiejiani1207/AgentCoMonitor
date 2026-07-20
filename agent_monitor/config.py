@@ -22,7 +22,8 @@ class Settings(BaseSettings):
 
     # LLM
     llm_api_key: str = ""
-    llm_model: str = "claude-sonnet-5"
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4o"
 
     model_config = {
         "env_prefix": "AM_",

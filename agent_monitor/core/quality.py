@@ -40,11 +40,47 @@ class QualityAssessor:
         result = assessor.evaluate(trace)
     """
 
-    def __init__(self, weights: Optional[dict[str, float]] = None):
+    def __init__(
+        self,
+        weights: Optional[dict[str, float]] = None,
+        use_llm: bool = False,
+    ):
         self.weights = weights or DEFAULT_WEIGHTS
+        self.use_llm = use_llm
 
     def evaluate(self, trace: TraceRecord) -> QualityResult:
         """两层评估：规则快速过滤 + LLM 深度评估（可选）。"""
+        result = QualityResult(trace_id=trace.trace_id)
+
+        # Layer 1: 规则检查（始终执行）
+        result.compliance = self._check_compliance(trace)
+        result.completeness = self._check_completeness(trace)
+        result.timeliness = self._check_timeliness(trace)
+
+        # 如果第一层发现严重合规问题，跳过第二层
+        if result.compliance is not None and result.compliance < 40:
+            result.eval_method = "rule_only"
+            result.eval_detail["skip_reason"] = "合规风险过高，跳过 LLM 评估"
+            result.overall_score = self._compute_overall(result)
+            return result
+
+        # Layer 2: 评估（规则估算 或 LLM-as-Judge）
+        if self.use_llm:
+            result.accuracy = self._estimate_accuracy(trace)
+            result.relevance = self._estimate_relevance(trace)
+            result.eval_method = "rule"  # 同步方法用 rule；异步用 evaluate_async
+        else:
+            result.accuracy = self._estimate_accuracy(trace)
+            result.relevance = self._estimate_relevance(trace)
+            result.eval_method = "rule"
+
+        result.overall_score = self._compute_overall(result)
+        return result
+
+    async def evaluate_async(self, trace: TraceRecord) -> QualityResult:
+        """异步评估——Layer 2 使用 LLM-as-Judge 真实打分。"""
+        from agent_monitor.core.llm_client import llm_judge
+
         result = QualityResult(trace_id=trace.trace_id)
 
         # Layer 1: 规则检查
@@ -52,18 +88,33 @@ class QualityAssessor:
         result.completeness = self._check_completeness(trace)
         result.timeliness = self._check_timeliness(trace)
 
-        # 如果第一层发现严重合规问题，跳过第二层 LLM 评估
         if result.compliance is not None and result.compliance < 40:
             result.eval_method = "rule_only"
-            result.eval_detail["skip_reason"] = "合规风险过高，跳过 LLM 评估"
             result.overall_score = self._compute_overall(result)
             return result
 
-        # Layer 2: LLM-as-Judge（当前为规则估算，后续接入 LLM）
-        result.accuracy = self._estimate_accuracy(trace)
-        result.relevance = self._estimate_relevance(trace)
+        # Layer 2: LLM-as-Judge
+        try:
+            accuracy_score = await llm_judge(
+                task="评估以下内容的准确性：事实是否正确，有无编造，引用是否准确。",
+                content=trace.output_content or "",
+                criteria="100分=完全准确，0分=全是编造。给出0-100的数字。",
+            )
+            result.accuracy = float(accuracy_score)
+        except Exception:
+            result.accuracy = self._estimate_accuracy(trace)
 
-        result.eval_method = "rule"  # 后续 LLM 接入后改为 "hybrid"
+        try:
+            relevance_score = await llm_judge(
+                task="评估以下内容与输入问题的相关性：是否紧扣主题，有无跑题。",
+                content=f"输入: {trace.input_prompt or ''}\n\n输出: {trace.output_content or ''}",
+                criteria="100分=完全相关，0分=完全跑题。给出0-100的数字。",
+            )
+            result.relevance = float(relevance_score)
+        except Exception:
+            result.relevance = self._estimate_relevance(trace)
+
+        result.eval_method = "hybrid"
         result.overall_score = self._compute_overall(result)
         return result
 
