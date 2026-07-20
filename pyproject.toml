@@ -1,0 +1,32 @@
+[project]
+name = "agent-monitor"
+version = "0.1.0"
+description = "跨智能体协同执行智能监控与结果筛选优化系统"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "langgraph>=0.2",
+    "langchain-core",
+    "websockets",
+    "pydantic>=2.0",
+    "pydantic-settings",
+    "httpx",
+    "jsonschema",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio",
+    "httpx",
+]
+ml = [
+    "sentence-transformers",
+]
+
+[tool.setuptools.packages.find]
+include = ["agent_monitor*", "demo_advisory*"]
