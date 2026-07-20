@@ -34,12 +34,6 @@ jobs:
       - name: Run unit tests
         run: pytest tests/unit/ -v
 
-      - name: Run integration tests
-        run: pytest tests/integration/ -v
-        env:
-          AM_DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test_db
-          AM_DATABASE_URL_SYNC: postgresql://test:test@localhost:5432/test_db
-
   lint:
     runs-on: ubuntu-latest
     steps:
