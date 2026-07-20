@@ -1,6 +1,6 @@
 """Tests for QualityAssessor."""
 
-from agent_monitor.core.quality import QualityAssessor, QualityResult
+from agent_monitor.core.quality import QualityAssessor
 from agent_monitor.core.models import TraceRecord, TraceStatus
 
 

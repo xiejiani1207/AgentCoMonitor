@@ -1,6 +1,6 @@
 """Tests for AnomalyDetector."""
 
-from agent_monitor.core.anomaly import AnomalyDetector, AnomalyResult
+from agent_monitor.core.anomaly import AnomalyDetector
 from agent_monitor.core.models import TraceRecord, TraceStatus, AnomalySeverity
 
 

@@ -3,7 +3,7 @@
 执行层（规则引擎）→ 行为层（链路分析器）→ 输出层（内容分析器）
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 import hashlib
 
