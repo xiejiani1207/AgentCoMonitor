@@ -1,12 +1,6 @@
 """Tests for ResultOptimizer."""
 
-from agent_monitor.core.optimizer import (
-    ResultOptimizer,
-    RankedResult,
-    OptimizationSuggestion,
-    LOW_SCORE_THRESHOLD,
-)
-from agent_monitor.core.models import QualityDimension
+from agent_monitor.core.optimizer import ResultOptimizer
 
 
 def _make_result(agent_name, output, score=80, anomaly_count=0, trace_id=None):

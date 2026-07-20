@@ -165,14 +165,8 @@ def test_full_pipeline():
     assert decision_result["quality_metrics"]["compliance"] is not None
     assert decision_result["quality_metrics"]["compliance"] < 80
 
-    # 3. 异常检测发现合规相关异常（输出层——合规违规）
-    compliance_anomalies = [
-        a for a in all_anomalies
-        if a.layer == "output"
-    ]
-    # 决策 Agent 因空输出检查不算异常（内容够长），但可能有其他异常
-    # 只要异常检测运行了即可
-    assert len(all_anomalies) >= 0  # 至少运行了
+    # 3. 异常检测正常运行
+    assert len(all_anomalies) >= 0  # smoke check
 
     # 4. 筛选优化：排序 + 推荐
     ranked = result_optimizer.rank(results_for_ranking)
