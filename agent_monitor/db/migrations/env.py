@@ -3,21 +3,20 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
+
+from agent_monitor.db.session import Base
+from agent_monitor.db import models  # noqa: F401 — ensure models are imported for autogenerate
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-
-from agent_monitor.db.session import Base
-from agent_monitor.db import models  # noqa: F401 — ensure models are imported for autogenerate
 
 target_metadata = Base.metadata
 
@@ -64,9 +63,10 @@ async def run_async_migrations() -> None:
 
     """
 
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    from agent_monitor.config import settings
+
+    connectable = create_async_engine(
+        settings.database_url,
         poolclass=pool.NullPool,
     )
 

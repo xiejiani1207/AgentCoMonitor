@@ -10,6 +10,13 @@ class Settings(BaseSettings):
         "postgresql://agentmonitor:agentmonitor@localhost:5432/agent_monitor"
     )
 
+    @property
+    def database_connect_args(self) -> dict:
+        """如果是 Neon（含 'neon.tech'），自动启用 SSL。"""
+        if "neon.tech" in self.database_url:
+            return {"ssl": "require"}
+        return {}
+
     # WebSocket
     websocket_heartbeat_interval: int = 30
 
@@ -17,7 +24,11 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "claude-sonnet-5"
 
-    model_config = {"env_prefix": "AM_"}
+    model_config = {
+        "env_prefix": "AM_",
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
 
 
 settings = Settings()

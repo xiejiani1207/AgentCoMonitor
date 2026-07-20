@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     Column,
@@ -12,7 +11,6 @@ from sqlalchemy import (
     Text,
     DateTime,
     Enum,
-    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
