@@ -1,17 +1,24 @@
-"""Tests for SQLAlchemy ORM models."""
+"""Tests for SQLAlchemy ORM model definitions (no DB connection required)."""
 
-import pytest
+from agent_monitor.db import models  # noqa: F401 — ensure tables registered
+from agent_monitor.db.models import Trace
+from agent_monitor.db.session import Base
 
-from agent_monitor.db.models import Task, Trace, AnomalyEvent, QualityScore, OptimizationSuggestion
+
+def test_tables_defined():
+    """All five core tables are defined in metadata."""
+    table_names = set(Base.metadata.tables.keys())
+    expected = {"tasks", "traces", "anomaly_events", "quality_scores", "optimization_suggestions"}
+    assert table_names >= expected
 
 
-@pytest.mark.asyncio
-async def test_trace_creation(db_session):
-    """Verify a Trace can be persisted."""
-    from agent_monitor.db.session import Base
-
-    assert Base.metadata.tables["traces"] is not None
-    assert Base.metadata.tables["tasks"] is not None
-    assert Base.metadata.tables["anomaly_events"] is not None
-    assert Base.metadata.tables["quality_scores"] is not None
-    assert Base.metadata.tables["optimization_suggestions"] is not None
+def test_trace_columns():
+    """Trace model has expected columns."""
+    cols = {c.name for c in Trace.__table__.columns}
+    assert "trace_id" in cols
+    assert "task_id" in cols
+    assert "agent_name" in cols
+    assert "parent_trace_id" in cols
+    assert "status" in cols
+    assert "quality_score" in cols
+    assert "quality_metrics" in cols
