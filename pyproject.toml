@@ -30,3 +30,8 @@ ml = [
 
 [tool.setuptools.packages.find]
 include = ["agent_monitor*", "demo_advisory*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
