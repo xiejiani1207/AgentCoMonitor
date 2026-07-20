@@ -8,7 +8,6 @@
 
 from datetime import datetime
 from agent_monitor.core.models import TraceRecord, TraceStatus
-from agent_monitor.core.collector import TraceCollector
 from agent_monitor.core.anomaly import AnomalyDetector
 from agent_monitor.core.quality import QualityAssessor
 from agent_monitor.core.optimizer import ResultOptimizer
@@ -121,8 +120,7 @@ def test_full_pipeline():
     traces = _make_traces()
     task_id = traces[0].task_id
 
-    # 初始化四大模块
-    collector = TraceCollector()
+    # 初始化三大模块（collector 需要 DB，此处仅测试核心逻辑）
     anomaly_detector = AnomalyDetector(timeout_ms=30000)
     quality_assessor = QualityAssessor()
     result_optimizer = ResultOptimizer()

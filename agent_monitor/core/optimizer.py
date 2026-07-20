@@ -4,7 +4,7 @@ Pipeline: 异常过滤 → 质量排序 → 多样性去重 → 推荐输出
 双通道优化建议：人类可读 + Agent 结构化指令
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Optional
 
