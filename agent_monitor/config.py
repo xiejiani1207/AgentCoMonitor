@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         "env_prefix": "AM_",
         "env_file": ".env",
         "env_file_encoding": "utf-8",
+        "extra": "allow",  # 允许 DEMO_LLM_* 等非 AM_ 前缀的变量共存
     }
 
 
