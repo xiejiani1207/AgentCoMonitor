@@ -116,7 +116,7 @@ STOCK_DATA = {json.dumps(data, ensure_ascii=False, indent=2)}
 '''
     with open("demo_advisory/mock_data/stocks.py", "w", encoding="utf-8") as f:
         f.write(output)
-    print(f"\nDone → demo_advisory/mock_data/stocks.py")
+    print("\nDone → demo_advisory/mock_data/stocks.py")
 
 
 if __name__ == "__main__":

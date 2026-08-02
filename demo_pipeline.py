@@ -114,7 +114,7 @@ async def demo_async():
                 print(f"    [{a.severity.upper()}] {a.anomaly_type}")
                 print(f"            {a.description}")
         else:
-            print(f"  [异常检测] 无异常")
+            print("  [异常检测] 无异常")
 
         # ---- 质量评估 ----
         quality = await quality_assessor.evaluate_async(trace)
@@ -140,7 +140,7 @@ async def demo_async():
 
     # ==================== 筛选排名 ====================
     print(f"\n\n{sep}")
-    print(f"  筛选优化结果")
+    print("  筛选优化结果")
     print(f"{sep}")
 
     ranked = result_optimizer.rank(results_for_ranking)
@@ -151,7 +151,7 @@ async def demo_async():
 
     # ==================== 优化建议 ====================
     print(f"\n{sep}")
-    print(f"  优化建议（针对低分维度）")
+    print("  优化建议（针对低分维度）")
     print(f"{sep}")
 
     for r in results_for_ranking:
