@@ -6,7 +6,6 @@ Pipeline: 异常过滤 → 质量排序 → 多样性去重 → 推荐输出
 
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Optional
 
 from agent_monitor.core.models import QualityDimension
 
@@ -30,7 +29,7 @@ class OptimizationSuggestion:
     target: str  # "human" | "agent"
     dimension: str
     content: str
-    structured_cmd: Optional[dict] = None
+    structured_cmd: dict | None = None
 
 
 # 优化建议模板：面向人类操作者
@@ -183,7 +182,7 @@ class ResultOptimizer:
 
     def get_top_recommendation(
         self, ranked: list[RankedResult]
-    ) -> Optional[RankedResult]:
+    ) -> RankedResult | None:
         """获取最佳推荐结果。"""
         for r in ranked:
             if r.recommendation == "adopted":

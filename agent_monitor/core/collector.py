@@ -4,13 +4,14 @@
 """
 
 import logging
-from typing import Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_monitor.core.models import TraceRecord
-from agent_monitor.db.models import Trace as TraceModel, Task as TaskModel
+from agent_monitor.db.models import Task as TaskModel
+from agent_monitor.db.models import Trace as TraceModel
 from agent_monitor.db.session import async_session
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class TraceCollector:
         adapter.set_on_trace(lambda tr: collector.collect(tr))
     """
 
-    def __init__(self, ws_notifier: Optional[WebSocketNotifier] = None):
+    def __init__(self, ws_notifier: WebSocketNotifier | None = None):
         self._ws_notifier = ws_notifier
 
     async def collect(self, trace: TraceRecord) -> None:

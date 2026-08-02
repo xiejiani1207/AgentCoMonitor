@@ -1,9 +1,8 @@
 """通用 Trace 数据模型——框架无关的标准化数据结构。"""
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
-import uuid
 
 
 @dataclass
@@ -21,22 +20,22 @@ class TraceRecord:
     output_content: str
 
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    parent_trace_id: Optional[str] = None
+    parent_trace_id: str | None = None
 
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    duration_ms: Optional[int] = None
-    token_used: Optional[int] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    duration_ms: int | None = None
+    token_used: int | None = None
 
     decision_type: str = ""
     decision_summary: str = ""
     tool_calls: list[dict] = field(default_factory=list)
 
     status: str = "pending"
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
-    quality_score: Optional[float] = None
-    quality_metrics: Optional[dict] = None
+    quality_score: float | None = None
+    quality_metrics: dict | None = None
 
 
 class TraceStatus:
@@ -67,7 +66,7 @@ class QualityDimension:
     TIMELINESS = "timeliness"
 
     # 默认权重（投顾场景）
-    DEFAULT_WEIGHTS = {
+    DEFAULT_WEIGHTS: dict = {  # noqa: RUF012
         "compliance": 0.30,
         "accuracy": 0.25,
         "completeness": 0.20,

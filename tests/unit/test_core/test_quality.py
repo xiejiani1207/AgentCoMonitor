@@ -1,18 +1,18 @@
 """Tests for QualityAssessor."""
 
-from agent_monitor.core.quality import QualityAssessor
 from agent_monitor.core.models import TraceRecord, TraceStatus
+from agent_monitor.core.quality import QualityAssessor
 
 
 def _make_trace(**overrides) -> TraceRecord:
-    defaults = dict(
-        agent_name="test_agent",
-        agent_role="tester",
-        task_id="task-1",
-        input_prompt="分析股票 600519 的投资价值",
-        output_content="根据技术面和基本面分析，建议买入该股票。请注意风险。",
-        status=TraceStatus.SUCCESS,
-    )
+    defaults = {
+        "agent_name": "test_agent",
+        "agent_role": "tester",
+        "task_id": "task-1",
+        "input_prompt": "分析股票 600519 的投资价值",
+        "output_content": "根据技术面和基本面分析，建议买入该股票。请注意风险。",
+        "status": TraceStatus.SUCCESS,
+    }
     return TraceRecord(**{**defaults, **overrides})
 
 

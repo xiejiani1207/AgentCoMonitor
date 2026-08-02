@@ -31,6 +31,15 @@ ml = [
 [tool.setuptools.packages.find]
 include = ["agent_monitor*", "demo_advisory*"]
 
+[tool.ruff.lint]
+ignore = [
+    "B008",   # FastAPI Depends() in defaults — 标准模式
+    "BLE001", # Blind Exception — Demo Agent 的 LLM fallback 需要
+    "DTZ001", # datetime without tz — 测试代码用 naive datetime
+    "DTZ003", # utcnow() — langgraph adapter 使用
+    "C408",   # dict() vs {} — 测试 helper 可读性
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

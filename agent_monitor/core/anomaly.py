@@ -3,11 +3,15 @@
 执行层（规则引擎）→ 行为层（链路分析器）→ 输出层（内容分析器）
 """
 
-from dataclasses import dataclass
-from typing import Optional
 import hashlib
+from dataclasses import dataclass
 
-from agent_monitor.core.models import TraceRecord, TraceStatus, AnomalySeverity, AnomalyLayer
+from agent_monitor.core.models import (
+    AnomalyLayer,
+    AnomalySeverity,
+    TraceRecord,
+    TraceStatus,
+)
 
 
 @dataclass
@@ -18,8 +22,8 @@ class AnomalyResult:
     layer: str             # execution / behavior / output
     description: str
     suggestion: str = ""
-    trace_id: Optional[str] = None
-    task_id: Optional[str] = None
+    trace_id: str | None = None
+    task_id: str | None = None
 
 
 class AnomalyDetector:

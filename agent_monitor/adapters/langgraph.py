@@ -1,7 +1,7 @@
 """LangGraph 适配器——通过 callbacks 机制零侵入采集 Trace 数据。"""
 
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -25,7 +25,7 @@ class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
         # 追踪当前活跃的 traces: chain_run_id → TraceRecord
         self._active: dict[str, TraceRecord] = {}
         # task_id 由外部注入或在第一个 chain start 时生成
-        self._task_id: Optional[str] = None
+        self._task_id: str | None = None
 
     # ---- MonitoringAdapter 接口实现 ----
 
@@ -40,9 +40,9 @@ class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
         inputs: dict[str, Any],
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         trace = TraceRecord(
@@ -64,7 +64,7 @@ class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
         outputs: dict[str, Any],
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
         trace = self._active.pop(str(run_id), None)
@@ -86,7 +86,7 @@ class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
         error: BaseException,
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
         trace = self._active.pop(str(run_id), None)
@@ -108,7 +108,7 @@ class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
     # ---- 内部方法 ----
 
     def _extract_agent_name(
-        self, serialized: dict[str, Any], metadata: Optional[dict[str, Any]]
+        self, serialized: dict[str, Any], metadata: dict[str, Any] | None
     ) -> str:
         if metadata and "agent_name" in metadata:
             return metadata["agent_name"]
@@ -134,5 +134,5 @@ class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
         return str(outputs)
 
     @property
-    def task_id(self) -> Optional[str]:
+    def task_id(self) -> str | None:
         return self._task_id

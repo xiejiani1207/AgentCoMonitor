@@ -3,16 +3,16 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column,
+    DateTime,
+    Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
-    Float,
     String,
     Text,
-    DateTime,
-    Enum,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from agent_monitor.db.session import Base

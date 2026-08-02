@@ -1,15 +1,25 @@
 """REST API 路由。"""
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agent_monitor.db.session import get_db
-from agent_monitor.db.models import Task, Trace, AnomalyEvent, QualityScore, OptimizationSuggestion
 from agent_monitor.api.schemas import (
-    TaskOut, TraceOut, AnomalyOut, QualityScoreOut, SuggestionOut,
+    AnomalyOut,
+    QualityScoreOut,
+    SuggestionOut,
+    TaskOut,
+    TraceOut,
 )
 from agent_monitor.api.websocket import ws_manager
+from agent_monitor.db.models import (
+    AnomalyEvent,
+    OptimizationSuggestion,
+    QualityScore,
+    Task,
+    Trace,
+)
+from agent_monitor.db.session import get_db
 
 router = APIRouter(prefix="/api")
 

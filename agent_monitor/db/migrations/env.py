@@ -1,14 +1,15 @@
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from alembic import context
-
+from agent_monitor.db import (
+    models,  # noqa: F401 — ensure models are imported for autogenerate
+)
 from agent_monitor.db.session import Base
-from agent_monitor.db import models  # noqa: F401 — ensure models are imported for autogenerate
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

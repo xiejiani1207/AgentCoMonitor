@@ -4,9 +4,9 @@
 """
 
 import logging
-from typing import Optional
 
 import httpx
+
 from agent_monitor.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 async def llm_chat(
     system_prompt: str,
     user_message: str,
-    model: Optional[str] = None,
+    model: str | None = None,
     temperature: float = 0.1,
     max_tokens: int = 512,
 ) -> str:
@@ -53,7 +53,7 @@ async def llm_judge(
     task: str,
     content: str,
     criteria: str,
-    model: Optional[str] = None,
+    model: str | None = None,
 ) -> str:
     """LLM-as-Judge：对内容按标准打分，返回 0-100 的数字。"""
     prompt = (

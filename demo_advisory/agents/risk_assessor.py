@@ -1,6 +1,7 @@
 """Agent 4: 风控评估 Agent。"""
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
 from demo_advisory.agents._llm import get_llm, load_prompt
 
 SYSTEM_PROMPT = load_prompt("risk_assessor.md")

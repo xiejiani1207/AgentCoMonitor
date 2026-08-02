@@ -6,7 +6,7 @@
 不调用 LLM——纯数据查询。这是整个 Demo 链路的唯一真实数据入口。
 """
 
-from typing import Optional
+
 from demo_advisory.mock_data.stocks import STOCK_DATA
 
 
@@ -100,7 +100,7 @@ def run(state: dict) -> dict:
 
 # ---- 内部匹配逻辑 ----
 
-def _find_stock(query: str) -> Optional[tuple[str, dict]]:
+def _find_stock(query: str) -> tuple[str, dict] | None:
     """在 STOCK_DATA 中按代码或名称匹配股票。"""
     # 直接代码匹配（如 "600519"）
     if query in STOCK_DATA:

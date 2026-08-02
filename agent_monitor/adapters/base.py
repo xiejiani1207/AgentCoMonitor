@@ -4,7 +4,8 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from collections.abc import Callable
+
 from agent_monitor.core.models import TraceRecord
 
 
@@ -17,7 +18,7 @@ class MonitoringAdapter(ABC):
     3. 通过回调将 TraceRecord 传递给监控平台
     """
 
-    def __init__(self, on_trace: Optional[Callable[[TraceRecord], None]] = None):
+    def __init__(self, on_trace: Callable[[TraceRecord], None] | None = None):
         """
         Args:
             on_trace: 回调函数，每完成一条 Trace 时调用。

@@ -1,15 +1,14 @@
 """Pydantic 请求/响应模型。"""
 
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel
 
+from pydantic import BaseModel
 
 # ---- Task ----
 
 class TaskOut(BaseModel):
     task_id: str
-    title: Optional[str] = None
+    title: str | None = None
     status: str
     created_at: datetime
     updated_at: datetime
@@ -24,17 +23,17 @@ class TraceOut(BaseModel):
     trace_id: str
     task_id: str
     agent_name: str
-    agent_role: Optional[str] = None
-    parent_trace_id: Optional[str] = None
+    agent_role: str | None = None
+    parent_trace_id: str | None = None
     start_time: datetime
-    end_time: Optional[datetime] = None
-    duration_ms: Optional[int] = None
-    input_prompt: Optional[str] = None
-    output_content: Optional[str] = None
-    token_used: Optional[int] = None
+    end_time: datetime | None = None
+    duration_ms: int | None = None
+    input_prompt: str | None = None
+    output_content: str | None = None
+    token_used: int | None = None
     status: str
-    error_message: Optional[str] = None
-    quality_score: Optional[float] = None
+    error_message: str | None = None
+    quality_score: float | None = None
 
     class Config:
         from_attributes = True
@@ -44,13 +43,13 @@ class TraceOut(BaseModel):
 
 class AnomalyOut(BaseModel):
     id: int
-    trace_id: Optional[str] = None
+    trace_id: str | None = None
     task_id: str
     anomaly_type: str
     severity: str
     layer: str
     description: str
-    suggestion: Optional[str] = None
+    suggestion: str | None = None
     created_at: datetime
 
     class Config:
@@ -61,13 +60,13 @@ class AnomalyOut(BaseModel):
 
 class QualityScoreOut(BaseModel):
     trace_id: str
-    accuracy: Optional[float] = None
-    completeness: Optional[float] = None
-    relevance: Optional[float] = None
-    compliance: Optional[float] = None
-    timeliness: Optional[float] = None
+    accuracy: float | None = None
+    completeness: float | None = None
+    relevance: float | None = None
+    compliance: float | None = None
+    timeliness: float | None = None
     overall_score: float
-    eval_method: Optional[str] = None
+    eval_method: str | None = None
     created_at: datetime
 
     class Config:
@@ -78,7 +77,7 @@ class QualityScoreOut(BaseModel):
 
 class SuggestionOut(BaseModel):
     id: int
-    trace_id: Optional[str] = None
+    trace_id: str | None = None
     task_id: str
     target: str
     low_dimension: str

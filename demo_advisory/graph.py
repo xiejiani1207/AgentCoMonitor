@@ -10,27 +10,26 @@
   state = await run_advisory("分析 600519")
 """
 
-from typing import TypedDict, Optional
+from typing import TypedDict
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 from demo_advisory.agents import (
+    compliance_checker,
     data_collector,
-    technical_analyst,
+    decision_maker,
     fundamental_analyst,
     risk_assessor,
-    decision_maker,
-    compliance_checker,
+    technical_analyst,
 )
-
 
 # ---- State 定义 ----
 
 class AdvisoryState(TypedDict, total=False):
     query: str                          # 用户查询
-    stock_code: Optional[str]           # 股票代码
-    stock_name: Optional[str]           # 股票名称
-    collected_data: Optional[dict]      # 数据采集结果
+    stock_code: str | None           # 股票代码
+    stock_name: str | None           # 股票名称
+    collected_data: dict | None      # 数据采集结果
     technical_report: str               # 技术面分析报告
     fundamental_report: str             # 基本面分析报告
     risk_report: str                    # 风控评估报告
@@ -38,7 +37,7 @@ class AdvisoryState(TypedDict, total=False):
     compliance_result: str              # 合规审查结果
     compliance_score: int               # 合规评分
     final_output: str                   # 最终输出（合规过滤后）
-    error: Optional[str]                # 错误信息
+    error: str | None                # 错误信息
 
 
 # ---- 构建 Graph ----

@@ -5,8 +5,9 @@
 """
 
 import json
-import akshare as ak
 from datetime import datetime
+
+import akshare as ak
 
 STOCKS = {
     "600519": "贵州茅台",
@@ -93,7 +94,7 @@ def _safe_float(val) -> float | None:
 
 def main():
     data = {}
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(tz=None).strftime("%Y-%m-%d")  # noqa: DTZ005
 
     for code, name in STOCKS.items():
         print(f"Fetching {name} ({code})...")

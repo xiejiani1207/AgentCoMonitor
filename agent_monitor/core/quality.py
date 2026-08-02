@@ -4,9 +4,8 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
-from agent_monitor.core.models import TraceRecord, QualityDimension
+from agent_monitor.core.models import QualityDimension, TraceRecord
 
 # 金融投顾场景默认权重
 DEFAULT_WEIGHTS = QualityDimension.DEFAULT_WEIGHTS
@@ -22,11 +21,11 @@ COMPLIANCE_BLACKLIST = [
 class QualityResult:
     """质量评估结果（轻量级，非 ORM）。"""
     trace_id: str
-    accuracy: Optional[float] = None
-    completeness: Optional[float] = None
-    relevance: Optional[float] = None
-    compliance: Optional[float] = None
-    timeliness: Optional[float] = None
+    accuracy: float | None = None
+    completeness: float | None = None
+    relevance: float | None = None
+    compliance: float | None = None
+    timeliness: float | None = None
     overall_score: float = 0.0
     eval_method: str = "rule"
     eval_detail: dict = field(default_factory=dict)
@@ -42,7 +41,7 @@ class QualityAssessor:
 
     def __init__(
         self,
-        weights: Optional[dict[str, float]] = None,
+        weights: dict[str, float] | None = None,
         use_llm: bool = False,
     ):
         self.weights = weights or DEFAULT_WEIGHTS

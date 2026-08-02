@@ -4,6 +4,7 @@
 """
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
 from demo_advisory.agents._llm import get_llm, load_prompt
 
 SYSTEM_PROMPT = load_prompt("compliance_checker.md")

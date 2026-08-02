@@ -1,18 +1,18 @@
 """Tests for AnomalyDetector."""
 
 from agent_monitor.core.anomaly import AnomalyDetector
-from agent_monitor.core.models import TraceRecord, TraceStatus, AnomalySeverity
+from agent_monitor.core.models import AnomalySeverity, TraceRecord, TraceStatus
 
 
 def _make_trace(**overrides) -> TraceRecord:
-    defaults = dict(
-        agent_name="test_agent",
-        agent_role="tester",
-        task_id="task-1",
-        input_prompt="hello",
-        output_content="world output is long enough",
-        status=TraceStatus.SUCCESS,
-    )
+    defaults = {
+        "agent_name": "test_agent",
+        "agent_role": "tester",
+        "task_id": "task-1",
+        "input_prompt": "hello",
+        "output_content": "world output is long enough",
+        "status": TraceStatus.SUCCESS,
+    }
     return TraceRecord(**{**defaults, **overrides})
 
 
