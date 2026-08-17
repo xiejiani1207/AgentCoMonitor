@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, Select, Space, Table, Tag, Typography } from "antd";
-import { api, AnomalyEvent } from "../api/client";
+import { api, AnomalyEvent, formatTime } from "../api/client";
 import { useWebSocket } from "../hooks/useWebSocket";
 
 const { Title } = Typography;
@@ -69,7 +69,7 @@ export default function Alerts() {
             title: "时间",
             dataIndex: "created_at",
             width: 180,
-            render: (d: string) => new Date(d).toLocaleString("zh-CN"),
+            render: (d: string) => formatTime(d),
           },
         ]}
       />

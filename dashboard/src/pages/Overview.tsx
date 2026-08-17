@@ -6,7 +6,7 @@ import {
   WarningOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
-import { api, AnomalyEvent, Task } from "../api/client";
+import { api, AnomalyEvent, formatTime, Task } from "../api/client";
 import { useNavigate } from "react-router-dom";
 
 const { Title } = Typography;
@@ -96,7 +96,7 @@ export default function Overview() {
               title: "创建时间",
               dataIndex: "created_at",
               width: 200,
-              render: (d: string) => new Date(d).toLocaleString("zh-CN"),
+              render: (d: string) => formatTime(d),
             },
           ]}
         />
@@ -121,7 +121,7 @@ export default function Overview() {
               title: "时间",
               dataIndex: "created_at",
               width: 180,
-              render: (d: string) => new Date(d).toLocaleString("zh-CN"),
+              render: (d: string) => formatTime(d),
             },
           ]}
         />

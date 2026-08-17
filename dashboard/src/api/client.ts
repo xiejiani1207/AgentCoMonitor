@@ -64,3 +64,10 @@ export const api = {
     get<AnomalyEvent[]>(`/anomalies?limit=50${taskId ? `&task_id=${taskId}` : ""}`),
   quality: (traceId: string) => get<QualityScore>(`/quality/${traceId}`),
 };
+
+// 后端存的是 naive UTC（datetime.utcnow()），API 返回无时区后缀的 ISO 字符串。
+// JS 的 new Date() 会把无时区字符串当本地时间解析，导致显示差 8 小时（UTC+8）。
+// 这里补 "Z" 显式按 UTC 解析，再转本地时区显示。
+export function formatTime(iso: string): string {
+  return new Date(iso.endsWith("Z") ? iso : `${iso}Z`).toLocaleString("zh-CN");
+}
