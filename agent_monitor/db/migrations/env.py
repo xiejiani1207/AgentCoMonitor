@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from agent_monitor.config import settings
 from agent_monitor.db import (
     models,  # noqa: F401 — ensure models are imported for autogenerate
 )
@@ -14,6 +15,10 @@ from agent_monitor.db.session import Base
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# 从环境变量注入数据库 URL，避免在 alembic.ini 中硬编码真实凭据。
+# 同步 URL 供离线模式（--sql）使用；在线模式在 run_async_migrations 中复用 settings.database_url。
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", ""))
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
@@ -63,8 +68,6 @@ async def run_async_migrations() -> None:
     and associate a connection with the context.
 
     """
-
-    from agent_monitor.config import settings
 
     connectable = create_async_engine(
         settings.database_url,

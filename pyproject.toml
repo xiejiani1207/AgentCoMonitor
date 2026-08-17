@@ -23,6 +23,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio",
     "httpx",
+    "ruff==0.16.1",
 ]
 ml = [
     "sentence-transformers",

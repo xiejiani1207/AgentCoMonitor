@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Card, Select, Space, Tag, Typography } from "antd";
-import { G6 } from "@antv/g6";
+import { Graph } from "@antv/g6";
 import { api, Trace } from "../api/client";
 import { useWebSocket } from "../hooks/useWebSocket";
 
@@ -16,7 +16,7 @@ const statusColor: Record<string, string> = {
 
 export default function Topology() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<ReturnType<typeof new G6.Graph> | null>(null);
+  const graphRef = useRef<InstanceType<typeof Graph> | null>(null);
   const [taskId, setTaskId] = useState<string>("");
   const [nodes, setNodes] = useState<Array<{ id: string; label: string; status: string }>>([]);
   const [edges, setEdges] = useState<Array<{ source: string; target: string }>>([]);
@@ -57,7 +57,7 @@ export default function Topology() {
     }
 
     // G6 v5 graph
-    const graph = new G6.Graph({
+    const graph = new Graph({
       container: containerRef.current,
       width: containerRef.current.clientWidth,
       height: 500,
@@ -74,7 +74,7 @@ export default function Topology() {
         })),
       },
       node: {
-        style: { size: 40, labelText: (d) => d.data?.label || "", labelFontSize: 12 },
+        style: { size: 40, labelText: (d: any) => d.data?.label || "", labelFontSize: 12 },
       },
       layout: { type: "dagre", rankdir: "LR", nodesep: 30, ranksep: 100 },
       behaviors: ["drag-canvas", "zoom-canvas", "drag-element"],

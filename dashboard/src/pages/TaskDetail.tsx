@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Card, Collapse, Descriptions, Spin, Table, Tag, Timeline, Typography } from "antd";
 import { api, QualityScore, Trace } from "../api/client";
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 const statusColor: Record<string, string> = {
   success: "green",
@@ -38,7 +38,7 @@ function QualityPanel({ traceId }: { traceId: string }) {
       <table style={{ width: "100%", marginTop: 8, borderCollapse: "collapse" }}>
         <tbody>
           {dims.map((d) => {
-            const val = (score as Record<string, unknown>)[d.key] as number | null;
+            const val = score[d.key as keyof QualityScore] as number | null;
             const color = val != null ? (val < 60 ? "#ff4d4f" : val < 80 ? "#faad14" : "#52c41a") : "#d9d9d9";
             return (
               <tr key={d.key}>
