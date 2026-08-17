@@ -73,4 +73,15 @@ class TraceCollector:
             select(TaskModel).where(TaskModel.task_id == task_id)
         )
         if result.scalar_one_or_none() is None:
-            session.add(TaskModel(task_id=task_id))
+            session.add(TaskModel(task_id=task_id, status="running"))
+
+    async def update_task_status(self, task_id: str, status: str) -> None:
+        """更新任务状态（running / completed / failed）。"""
+        async with async_session() as session:
+            result = await session.execute(
+                select(TaskModel).where(TaskModel.task_id == task_id)
+            )
+            task = result.scalar_one_or_none()
+            if task is not None:
+                task.status = status
+                await session.commit()

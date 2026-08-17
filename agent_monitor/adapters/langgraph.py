@@ -1,138 +1,118 @@
-"""LangGraph 适配器——通过 callbacks 机制零侵入采集 Trace 数据。"""
+"""LangGraph 适配器——通过 astream_events 零侵入采集 Trace 数据。
 
+LangGraph 1.x 的节点事件通过 `graph.astream_events()` 暴露（节点名在
+metadata.langgraph_node），旧的 config["callbacks"] 逐节点回调不再可靠。
+"""
+
+import json
+import uuid
 from datetime import datetime
 from typing import Any
-from uuid import UUID
-
-from langchain_core.callbacks import BaseCallbackHandler
 
 from agent_monitor.adapters.base import MonitoringAdapter
 from agent_monitor.core.models import TraceRecord, TraceStatus
 
+# 输入/输出序列化截断长度，避免超大 state（如 60 日日线）撑爆数据库
+_MAX_SERIALIZE_LEN = 2000
 
-class LangGraphCallback(BaseCallbackHandler, MonitoringAdapter):
-    """LangGraph 监控钩子。
 
-    通过 LangGraph 原生的 config["callbacks"] 机制注入，Demo 端无需 import agent_monitor。
+class LangGraphCallback(MonitoringAdapter):
+    """LangGraph 监控适配器。
+
+    通过 astream_events 采集每个节点的执行 Trace，Demo 端无需 import agent_monitor。
 
     用法:
         monitor = LangGraphCallback(on_trace=my_handler)
-        graph.invoke(input, config={"callbacks": [monitor]})
+        await monitor.run(graph, {"query": "..."})
     """
 
-    def __init__(self, *args, **kwargs):
-        MonitoringAdapter.__init__(self, *args, **kwargs)
-        # 追踪当前活跃的 traces: chain_run_id → TraceRecord
-        self._active: dict[str, TraceRecord] = {}
-        # task_id 由外部注入或在第一个 chain start 时生成
+    def __init__(self, on_trace=None):
+        super().__init__(on_trace)
         self._task_id: str | None = None
-
-    # ---- MonitoringAdapter 接口实现 ----
+        self._active: dict[str, TraceRecord] = {}   # node name -> 进行中的 Trace
+        self._trace_ids: dict[str, str] = {}        # node name -> trace_id
+        self._parent_map: dict[str, str] = {}       # node name -> 父节点名
 
     def get_framework_name(self) -> str:
         return "langgraph"
 
-    # ---- LangChain Callbacks ----
+    async def run(self, graph, input: dict, config: dict | None = None) -> None:
+        """运行 graph，采集每个节点的 Trace 并通过 on_trace 发出。"""
+        # 一次 graph 运行 = 一个 task；每个节点有独立的 run_id（trace_id）
+        self._task_id = str(uuid.uuid4())
+        self._active = {}
+        self._trace_ids = {}
+        self._parent_map = self._build_parent_map(graph)
 
-    def on_chain_start(
-        self,
-        serialized: dict[str, Any],
-        inputs: dict[str, Any],
-        *,
-        run_id: UUID,
-        parent_run_id: UUID | None = None,
-        tags: list[str] | None = None,
-        metadata: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> None:
+        async for event in graph.astream_events(input, version="v2", config=config):
+            metadata = event.get("metadata") or {}
+            name = metadata.get("langgraph_node")
+            if not name:
+                continue  # 跳过图级事件，只采集节点
+            kind = event["event"]
+            if kind == "on_chain_start":
+                self._on_node_start(name, event)
+            elif kind == "on_chain_end":
+                self._on_node_end(name, event)
+            elif kind == "on_chain_error":
+                self._on_node_error(name, event)
+
+    # ---- 内部 ----
+
+    def _build_parent_map(self, graph) -> dict[str, str]:
+        """从图拓扑提取每个节点的父节点（多父节点取第一个）。"""
+        parent_map: dict[str, str] = {}
+        for edge in graph.get_graph().edges:
+            if edge.source == "__start__" or edge.target == "__end__":
+                continue
+            parent_map.setdefault(edge.target, edge.source)
+        return parent_map
+
+    def _on_node_start(self, name: str, event: dict) -> None:
+        trace_id = str(event["run_id"])
         trace = TraceRecord(
-            trace_id=str(run_id),
-            task_id=self._task_id or str(run_id),
-            agent_name=self._extract_agent_name(serialized, metadata),
-            agent_role=metadata.get("agent_role", "") if metadata else "",
-            input_prompt=self._serialize_inputs(inputs),
+            trace_id=trace_id,
+            task_id=self._task_id or str(uuid.uuid4()),
+            agent_name=name,
+            agent_role="",
+            input_prompt=self._serialize(event.get("data", {}).get("input", {})),
             output_content="",
             start_time=datetime.utcnow(),
-            parent_trace_id=str(parent_run_id) if parent_run_id else None,
+            parent_trace_id=self._trace_ids.get(self._parent_map.get(name, "")),
         )
-        self._active[str(run_id)] = trace
-        if self._task_id is None:
-            self._task_id = trace.task_id
+        self._active[name] = trace
+        self._trace_ids[name] = trace_id
 
-    def on_chain_end(
-        self,
-        outputs: dict[str, Any],
-        *,
-        run_id: UUID,
-        parent_run_id: UUID | None = None,
-        **kwargs: Any,
-    ) -> None:
-        trace = self._active.pop(str(run_id), None)
+    def _on_node_end(self, name: str, event: dict) -> None:
+        trace = self._active.pop(name, None)
         if trace is None:
             return
-
         trace.end_time = datetime.utcnow()
-        trace.output_content = self._serialize_outputs(outputs)
+        trace.output_content = self._serialize(event.get("data", {}).get("output", {}))
         if trace.start_time:
             trace.duration_ms = int(
                 (trace.end_time - trace.start_time).total_seconds() * 1000
             )
         trace.status = TraceStatus.SUCCESS
-
         self.emit(trace)
 
-    def on_chain_error(
-        self,
-        error: BaseException,
-        *,
-        run_id: UUID,
-        parent_run_id: UUID | None = None,
-        **kwargs: Any,
-    ) -> None:
-        trace = self._active.pop(str(run_id), None)
+    def _on_node_error(self, name: str, event: dict) -> None:
+        trace = self._active.pop(name, None)
         if trace is None:
             return
-
         trace.end_time = datetime.utcnow()
         trace.status = TraceStatus.ERROR
-        trace.error_message = str(error)
-
+        trace.error_message = str(event.get("data", {}).get("error", "未知错误"))
         self.emit(trace)
 
-    def on_llm_end(self, response, *, run_id: UUID, **kwargs: Any) -> None:
-        trace = self._active.get(str(run_id))
-        if trace and hasattr(response, "llm_output"):
-            usage = response.llm_output.get("token_usage", {})
-            trace.token_used = usage.get("total_tokens", 0)
-
-    # ---- 内部方法 ----
-
-    def _extract_agent_name(
-        self, serialized: dict[str, Any], metadata: dict[str, Any] | None
-    ) -> str:
-        if metadata and "agent_name" in metadata:
-            return metadata["agent_name"]
-        return serialized.get("name", serialized.get("id", "unknown"))
-
-    def _serialize_inputs(self, inputs: dict[str, Any]) -> str:
-        # LangGraph 的 inputs 通常包含 state dict，转换为可读字符串
-        if isinstance(inputs, dict):
-            # 去掉内部键，只保留有意义的内容
-            skip_keys = {"__start__", "callbacks", "config"}
-            filtered = {k: v for k, v in inputs.items() if k not in skip_keys}
+    @staticmethod
+    def _serialize(value: Any) -> str:
+        if isinstance(value, dict):
+            filtered = {
+                k: v for k, v in value.items() if k not in {"callbacks", "config"}
+            }
             if filtered:
-                import json
-
-                return json.dumps(filtered, ensure_ascii=False, default=str)
-        return str(inputs)
-
-    def _serialize_outputs(self, outputs: dict[str, Any]) -> str:
-        if isinstance(outputs, dict):
-            import json
-
-            return json.dumps(outputs, ensure_ascii=False, default=str)
-        return str(outputs)
-
-    @property
-    def task_id(self) -> str | None:
-        return self._task_id
+                return json.dumps(filtered, ensure_ascii=False, default=str)[
+                    :_MAX_SERIALIZE_LEN
+                ]
+        return str(value)[:_MAX_SERIALIZE_LEN]
