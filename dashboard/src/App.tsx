@@ -5,11 +5,13 @@ import {
   ApartmentOutlined,
   FileSearchOutlined,
   AlertOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import Overview from "./pages/Overview";
 import Topology from "./pages/Topology";
 import TaskDetail from "./pages/TaskDetail";
 import Alerts from "./pages/Alerts";
+import Chat from "./pages/Chat";
 
 const { Header, Content } = Layout;
 
@@ -17,6 +19,7 @@ const navItems = [
   { key: "/", icon: <DashboardOutlined />, label: <Link to="/">概览总览</Link> },
   { key: "/topology", icon: <ApartmentOutlined />, label: <Link to="/topology">链路追踪</Link> },
   { key: "/alerts", icon: <AlertOutlined />, label: <Link to="/alerts">异常告警</Link> },
+  { key: "/chat", icon: <RobotOutlined />, label: <Link to="/chat">智能投顾</Link> },
 ];
 
 function AppLayout() {
@@ -43,6 +46,7 @@ function AppLayout() {
           <Route path="/topology" element={<Topology />} />
           <Route path="/task/:taskId" element={<TaskDetail />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/chat" element={<Chat />} />
         </Routes>
       </Content>
     </Layout>

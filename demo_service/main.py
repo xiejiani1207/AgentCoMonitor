@@ -37,7 +37,7 @@ async def health():
     return {"status": "ok"}
 
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/advisory/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
     query = req.query.strip()
     if not query:

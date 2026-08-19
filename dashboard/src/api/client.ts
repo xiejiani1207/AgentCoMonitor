@@ -71,3 +71,51 @@ export const api = {
 export function formatTime(iso: string): string {
   return new Date(iso.endsWith("Z") ? iso : `${iso}Z`).toLocaleString("zh-CN");
 }
+
+// ---- 投顾 demo 服务（8001）----
+
+export interface AdvisoryReport {
+  stock_code: string | null;
+  stock_name: string | null;
+  technical_report: string;
+  fundamental_report: string;
+  risk_report: string;
+  decision: string;
+  compliance_result: string;
+  compliance_score: number | null;
+  final_output: string;
+}
+
+export interface TraceSummary {
+  agent_name: string;
+  status: string;
+  overall_score: number | null;
+}
+
+export interface MonitoringSummary {
+  task_id: string;
+  traces: TraceSummary[];
+  anomaly_count: number;
+  suggestion_count: number;
+  avg_quality_score: number | null;
+  min_compliance: number | null;
+}
+
+export interface ChatResponse {
+  query: string;
+  report: AdvisoryReport;
+  monitoring: MonitoringSummary;
+}
+
+export async function chat(query: string): Promise<ChatResponse> {
+  const res = await fetch("/advisory/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || `请求失败 (${res.status})`);
+  }
+  return res.json();
+}
