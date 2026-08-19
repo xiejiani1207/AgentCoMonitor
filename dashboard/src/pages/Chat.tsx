@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, Collapse, Input, Space, Spin, Tag, Typography } from "antd";
-import { RobotOutlined, SendOutlined } from "@ant-design/icons";
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  RobotOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
 import { chat, ChatResponse } from "../api/client";
 
 const { Title, Text, Paragraph } = Typography;
@@ -20,6 +25,15 @@ const AGENT_LABELS: Record<string, string> = {
   compliance_checker: "合规",
 };
 
+const AGENT_ORDER = [
+  "data_collector",
+  "technical_analyst",
+  "fundamental_analyst",
+  "risk_assessor",
+  "decision_maker",
+  "compliance_checker",
+];
+
 const REPORT_SECTIONS = [
   { key: "technical_report", label: "技术面分析" },
   { key: "fundamental_report", label: "基本面分析" },
@@ -33,6 +47,27 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ChatResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [doneAgents, setDoneAgents] = useState<string[]>([]);
+
+  // 连接投顾服务的进度 WebSocket，实时点亮步骤条
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${protocol}://${window.location.host}/advisory/ws`);
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.event === "agent_finished") {
+          const name = msg.data?.agent_name as string | undefined;
+          if (name) {
+            setDoneAgents((prev) => (prev.includes(name) ? prev : [...prev, name]));
+          }
+        }
+      } catch {
+        // 忽略无法解析的消息
+      }
+    };
+    return () => ws.close();
+  }, []);
 
   const send = async (q?: string) => {
     const text = (q ?? query).trim();
@@ -40,6 +75,7 @@ export default function Chat() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setDoneAgents([]);
     try {
       setResult(await chat(text));
     } catch (e) {
@@ -102,10 +138,24 @@ export default function Chat() {
       </Card>
 
       {loading && (
-        <Card style={{ marginTop: 16, textAlign: "center" }}>
-          <Spin tip="分析中…（6 个 Agent 协同，约 15 秒）">
-            <div style={{ minHeight: 80 }} />
+        <Card style={{ marginTop: 16 }}>
+          <Spin tip="分析中…">
+            <div style={{ minHeight: 32 }} />
           </Spin>
+          <Space wrap size={4} style={{ marginTop: 12 }}>
+            {AGENT_ORDER.map((name) => {
+              const done = doneAgents.includes(name);
+              return (
+                <Tag
+                  key={name}
+                  color={done ? "green" : "default"}
+                  icon={done ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
+                >
+                  {AGENT_LABELS[name]}
+                </Tag>
+              );
+            })}
+          </Space>
         </Card>
       )}
 

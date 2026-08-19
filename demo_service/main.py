@@ -7,7 +7,10 @@ demo_advisory/ 自身仍保持零侵入。
 运行: uvicorn demo_service.main:app --port 8001
 """
 
-from fastapi import FastAPI, HTTPException
+import asyncio
+import json
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent_monitor.adapters.langgraph import LangGraphCallback
@@ -32,9 +35,48 @@ app.add_middleware(
 )
 
 
+class ConnectionManager:
+    """管理 chat 进度 WebSocket 连接，广播 agent_finished 事件。"""
+
+    def __init__(self):
+        self._connections: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._connections.append(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        if ws in self._connections:
+            self._connections.remove(ws)
+
+    async def broadcast(self, event: str, data: dict) -> None:
+        payload = json.dumps({"event": event, "data": data}, default=str)
+        stale: list[WebSocket] = []
+        for ws in self._connections:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                stale.append(ws)
+        for ws in stale:
+            self.disconnect(ws)
+
+
+manager = ConnectionManager()
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.websocket("/advisory/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 
 @app.post("/advisory/chat", response_model=ChatResponse)
@@ -43,11 +85,32 @@ async def chat(req: ChatRequest) -> ChatResponse:
     if not query:
         raise HTTPException(status_code=400, detail="查询不能为空")
 
-    # 跑投顾链路 + 零侵入采集
     collected: list = []
-    monitor = LangGraphCallback(on_trace=collected.append)
+    broadcast_tasks: list = []
+
+    def on_trace(trace):
+        collected.append(trace)
+        # 每个 Agent 结束即广播进度（供前端步骤条实时点亮）
+        broadcast_tasks.append(
+            asyncio.create_task(
+                manager.broadcast(
+                    "agent_finished",
+                    {
+                        "task_id": trace.task_id,
+                        "agent_name": trace.agent_name,
+                        "status": trace.status,
+                    },
+                )
+            )
+        )
+
+    monitor = LangGraphCallback(on_trace=on_trace)
     graph = build_graph()
     final_state = await monitor.run(graph, {"query": query})
+
+    # 确保进度广播全部发出
+    if broadcast_tasks:
+        await asyncio.gather(*broadcast_tasks)
 
     if not final_state.get("stock_code"):
         raise HTTPException(
