@@ -85,3 +85,9 @@ class TraceCollector:
             if task is not None:
                 task.status = status
                 await session.commit()
+
+    async def create_task(self, task_id: str) -> None:
+        """预先创建任务（并发处理 Trace 前调用，避免并发建 task 的唯一约束冲突）。"""
+        async with async_session() as session:
+            await self._ensure_task_exists(session, task_id)
+            await session.commit()

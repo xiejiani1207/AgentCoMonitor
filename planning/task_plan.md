@@ -53,8 +53,8 @@
 
 ## 性能优化 Backlog
 
-- [ ] 并行化 LLM-as-Judge：`evaluate_async` 内 accuracy/relevance 用 `asyncio.gather` 并行；runner 里 6 条 trace 用 `asyncio.gather` 并行（需先把 `_ensure_task_exists` 改为幂等，避免并发建 task 触发唯一约束冲突）。预期单次 demo 从 ~40s 降到 ~15s。
-- [ ] 复用 httpx HTTP 连接：`llm_client.py` 的 `llm_chat` 每次新建 `httpx.AsyncClient`，改为模块级单例复用连接，省掉每次 TLS 握手开销。
+- [x] 并行化 LLM-as-Judge：`evaluate_async` 内 accuracy/relevance 用 `asyncio.gather` 并行；demo_service 里 6 条 trace 用 `asyncio.gather` 并行（`create_task` 预建 task 避免并发唯一约束冲突）。单次 demo 从 ~40s 降到 ~27s（graph 阶段 ~20s 是固有串行成本）。
+- [x] 复用 httpx HTTP 连接：`llm_client.py` 的 `llm_chat` 改为模块级 `_client` 单例复用连接，省掉每次 TLS 握手开销。
 
 ## 迭代规划（Phase 3 后）
 

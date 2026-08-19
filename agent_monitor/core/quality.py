@@ -3,6 +3,7 @@
 规则层（< 50ms，无 LLM 调用）→ LLM-as-Judge（深度语义评估）
 """
 
+import asyncio
 from dataclasses import dataclass, field
 
 from agent_monitor.core.models import QualityDimension, TraceRecord
@@ -92,26 +93,21 @@ class QualityAssessor:
             result.overall_score = self._compute_overall(result)
             return result
 
-        # Layer 2: LLM-as-Judge
-        try:
-            accuracy_score = await llm_judge(
+        # Layer 2: LLM-as-Judge（准确性 + 相关性并行）
+        accuracy_score, relevance_score = await asyncio.gather(
+            llm_judge(
                 task="评估以下内容的准确性：事实是否正确，有无编造，引用是否准确。",
                 content=trace.output_content or "",
                 criteria="100分=完全准确，0分=全是编造。给出0-100的数字。",
-            )
-            result.accuracy = float(accuracy_score)
-        except Exception:
-            result.accuracy = self._estimate_accuracy(trace)
-
-        try:
-            relevance_score = await llm_judge(
+            ),
+            llm_judge(
                 task="评估以下内容与输入问题的相关性：是否紧扣主题，有无跑题。",
                 content=f"输入: {trace.input_prompt or ''}\n\n输出: {trace.output_content or ''}",
                 criteria="100分=完全相关，0分=完全跑题。给出0-100的数字。",
-            )
-            result.relevance = float(relevance_score)
-        except Exception:
-            result.relevance = self._estimate_relevance(trace)
+            ),
+        )
+        result.accuracy = float(accuracy_score)
+        result.relevance = float(relevance_score)
 
         result.eval_method = "hybrid"
         result.overall_score = self._compute_overall(result)

@@ -141,12 +141,14 @@ async def chat(req: ChatRequest) -> ChatResponse:
         inject_issues(collected)
         logger.info("演示模式：已注入合规违规 + 超时异常")
 
-    # 逐条 Trace 走监控管线（采集/异常/质量/建议 → 落库）
+    # 逐条 Trace 走监控管线（并发处理；先预建 task 避免并发建 task 冲突）
     pipeline = MonitoringPipeline()
     processed = []
-    for trace in collected:
-        processed.append(await pipeline.process_trace(trace))
     if collected:
+        await pipeline.collector.create_task(collected[0].task_id)
+        processed = await asyncio.gather(
+            *(pipeline.process_trace(trace) for trace in collected)
+        )
         await pipeline.finalize_task(collected[0].task_id)
 
     # 触发监控反馈生成（自动闭环：监控 → 反馈 → 指令库）

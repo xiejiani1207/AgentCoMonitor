@@ -11,6 +11,9 @@ from agent_monitor.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 复用 HTTP 连接，避免每次调用重新建连（省 TLS 握手开销）
+_client = httpx.AsyncClient(timeout=30)
+
 
 async def llm_chat(
     system_prompt: str,
@@ -38,15 +41,14 @@ async def llm_chat(
         "max_tokens": max_tokens,
     }
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{settings.llm_base_url}/chat/completions",
-            headers=headers,
-            json=body,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    resp = await _client.post(
+        f"{settings.llm_base_url}/chat/completions",
+        headers=headers,
+        json=body,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"]
 
 
 async def llm_judge(
