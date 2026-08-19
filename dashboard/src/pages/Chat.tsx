@@ -3,8 +3,10 @@ import { Button, Card, Collapse, Input, Space, Spin, Switch, Tag, Typography } f
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
+  ClearOutlined,
   RobotOutlined,
   SendOutlined,
+  UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { chat, ChatResponse } from "../api/client";
@@ -43,10 +45,79 @@ const REPORT_SECTIONS = [
   { key: "compliance_result", label: "合规审查" },
 ] as const;
 
+interface Turn {
+  query: string;
+  result: ChatResponse;
+}
+
+function ReportCard({ result }: { result: ChatResponse }) {
+  return (
+    <>
+      {result.demo_mode && (
+        <Card style={{ marginTop: 12, background: "#fff7e6" }}>
+          <Tag color="orange" icon={<WarningOutlined />}>演示模式</Tag>
+          <Text>本次已人为注入破绽（合规违规 + 超时），用于演示反馈闭环</Text>
+        </Card>
+      )}
+      <Card
+        title={`${result.report.stock_name ?? ""} (${result.report.stock_code ?? ""})`}
+        style={{ marginTop: 12 }}
+      >
+        <Paragraph style={{ whiteSpace: "pre-wrap", fontSize: 15, marginBottom: 0 }}>
+          {result.report.final_output || "（无最终输出）"}
+        </Paragraph>
+      </Card>
+      <Card title="分析报告" style={{ marginTop: 12 }}>
+        <Collapse
+          size="small"
+          items={REPORT_SECTIONS.map((s) => ({
+            key: s.key,
+            label: s.label,
+            children: (
+              <Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
+                {result.report[s.key] || "（无）"}
+              </Paragraph>
+            ),
+          }))}
+        />
+      </Card>
+      <Card title="监控质检" style={{ marginTop: 12 }}>
+        <Space wrap size={8}>
+          <Tag color="blue">综合质量 {result.monitoring.avg_quality_score ?? "-"}</Tag>
+          <Tag
+            color={
+              result.monitoring.min_compliance != null && result.monitoring.min_compliance < 100
+                ? "red"
+                : "green"
+            }
+          >
+            合规 {result.monitoring.min_compliance ?? "-"}
+          </Tag>
+          <Tag color={result.monitoring.anomaly_count > 0 ? "red" : "green"}>
+            异常 {result.monitoring.anomaly_count}
+          </Tag>
+          <Tag>建议 {result.monitoring.suggestion_count}</Tag>
+        </Space>
+        <div style={{ marginTop: 12 }}>
+          <Text type="secondary">各 Agent 质量分：</Text>
+          <Space wrap size={4} style={{ marginTop: 8 }}>
+            {result.monitoring.traces.map((t) => (
+              <Tag key={t.agent_name} color={t.status === "success" ? "default" : "red"}>
+                {AGENT_LABELS[t.agent_name] ?? t.agent_name}: {t.overall_score ?? "-"}
+              </Tag>
+            ))}
+          </Space>
+        </div>
+      </Card>
+    </>
+  );
+}
+
 export default function Chat() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ChatResponse | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [doneAgents, setDoneAgents] = useState<string[]>([]);
   const [demoMode, setDemoMode] = useState(false);
@@ -74,27 +145,38 @@ export default function Chat() {
   const send = async (q?: string) => {
     const text = (q ?? query).trim();
     if (!text || loading) return;
+    setQuery("");
     setLoading(true);
     setError(null);
-    setResult(null);
     setDoneAgents([]);
+    setPendingQuery(text);
+    const history = turns.map((t) => t.query);
     try {
-      setResult(await chat(text, demoMode));
+      const result = await chat(text, demoMode, history);
+      setTurns((prev) => [...prev, { query: text, result }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+      setPendingQuery(null);
     }
   };
 
   return (
     <div style={{ padding: 24, maxWidth: 880, margin: "0 auto" }}>
-      <Title level={3}>
-        <RobotOutlined /> 智能投顾助手
-      </Title>
-      <Text type="secondary">
-        输入股票代码或名称，6 个 Agent 协同分析，并由监控平台实时质检
-      </Text>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <Title level={3} style={{ marginBottom: 0 }}>
+            <RobotOutlined /> 智能投顾助手
+          </Title>
+          <Text type="secondary">
+            多轮对话 · 6 个 Agent 协同分析 · 监控平台实时质检
+          </Text>
+        </div>
+        {turns.length > 0 && (
+          <Button icon={<ClearOutlined />} onClick={() => setTurns([])}>清空对话</Button>
+        )}
+      </div>
 
       <Card style={{ marginTop: 16 }}>
         <Space style={{ marginBottom: 12 }}>
@@ -104,7 +186,7 @@ export default function Chat() {
         <Input.TextArea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="例如：分析 600519 贵州茅台"
+          placeholder="例如：分析 600519 贵州茅台（可追问，如「那风险大不大？」）"
           autoSize={{ minRows: 2, maxRows: 4 }}
           onPressEnter={(e) => {
             if (!e.shiftKey) {
@@ -143,8 +225,33 @@ export default function Chat() {
         </div>
       </Card>
 
+      {turns.map((t, i) => (
+        <div key={i}>
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <Card size="small" style={{ maxWidth: "70%", background: "#e6f4ff" }}>
+              <Space>
+                <UserOutlined />
+                <Text strong>{t.query}</Text>
+              </Space>
+            </Card>
+          </div>
+          <ReportCard result={t.result} />
+        </div>
+      ))}
+
+      {pendingQuery && (
+        <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <Card size="small" style={{ maxWidth: "70%", background: "#e6f4ff" }}>
+            <Space>
+              <UserOutlined />
+              <Text strong>{pendingQuery}</Text>
+            </Space>
+          </Card>
+        </div>
+      )}
+
       {loading && (
-        <Card style={{ marginTop: 16 }}>
+        <Card style={{ marginTop: 12 }}>
           <Spin tip="分析中…">
             <div style={{ minHeight: 32 }} />
           </Spin>
@@ -169,69 +276,6 @@ export default function Chat() {
         <Card style={{ marginTop: 16 }}>
           <Text type="danger">{error}</Text>
         </Card>
-      )}
-
-      {result && (
-        <>
-          {result.demo_mode && (
-            <Card style={{ marginTop: 16, background: "#fff7e6" }}>
-              <Tag color="orange" icon={<WarningOutlined />}>演示模式</Tag>
-              <Text>本次已人为注入破绽（合规违规 + 超时），用于演示反馈闭环</Text>
-            </Card>
-          )}
-          <Card
-            title={`${result.report.stock_name ?? ""} (${result.report.stock_code ?? ""})`}
-            style={{ marginTop: 16 }}
-          >
-            <Paragraph style={{ whiteSpace: "pre-wrap", fontSize: 15, marginBottom: 0 }}>
-              {result.report.final_output || "（无最终输出）"}
-            </Paragraph>
-          </Card>
-
-          <Card title="分析报告" style={{ marginTop: 16 }}>
-            <Collapse
-              size="small"
-              items={REPORT_SECTIONS.map((s) => ({
-                key: s.key,
-                label: s.label,
-                children: (
-                  <Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
-                    {result.report[s.key] || "（无）"}
-                  </Paragraph>
-                ),
-              }))}
-            />
-          </Card>
-
-          <Card title="监控质检" style={{ marginTop: 16 }}>
-            <Space wrap size={8}>
-              <Tag color="blue">综合质量 {result.monitoring.avg_quality_score ?? "-"}</Tag>
-              <Tag
-                color={
-                  result.monitoring.min_compliance != null && result.monitoring.min_compliance < 100
-                    ? "red"
-                    : "green"
-                }
-              >
-                合规 {result.monitoring.min_compliance ?? "-"}
-              </Tag>
-              <Tag color={result.monitoring.anomaly_count > 0 ? "red" : "green"}>
-                异常 {result.monitoring.anomaly_count}
-              </Tag>
-              <Tag>建议 {result.monitoring.suggestion_count}</Tag>
-            </Space>
-            <div style={{ marginTop: 12 }}>
-              <Text type="secondary">各 Agent 质量分：</Text>
-              <Space wrap size={4} style={{ marginTop: 8 }}>
-                {result.monitoring.traces.map((t) => (
-                  <Tag key={t.agent_name} color={t.status === "success" ? "default" : "red"}>
-                    {AGENT_LABELS[t.agent_name] ?? t.agent_name}: {t.overall_score ?? "-"}
-                  </Tag>
-                ))}
-              </Space>
-            </div>
-          </Card>
-        </>
       )}
     </div>
   );

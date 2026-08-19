@@ -108,11 +108,11 @@ export interface ChatResponse {
   demo_mode: boolean;
 }
 
-export async function chat(query: string, demoMode = false): Promise<ChatResponse> {
+export async function chat(query: string, demoMode = false, history: string[] = []): Promise<ChatResponse> {
   const res = await fetch("/advisory/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, demo_mode: demoMode }),
+    body: JSON.stringify({ query, demo_mode: demoMode, history }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     query: str
     demo_mode: bool = False
+    history: list[str] = []
 
 
 class AdvisoryReport(BaseModel):

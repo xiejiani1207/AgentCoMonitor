@@ -23,6 +23,7 @@ from agent_monitor.core.pipeline import MonitoringPipeline
 from agent_monitor.db.models import AgentInstruction
 from agent_monitor.db.session import async_session
 from demo_advisory.agents._llm import set_active_instructions
+from demo_advisory.agents.memory_agent import run as resolve_query
 from demo_advisory.graph import build_graph
 from demo_service.schemas import (
     AdvisoryReport,
@@ -100,6 +101,9 @@ async def chat(req: ChatRequest) -> ChatResponse:
     if not query:
         raise HTTPException(status_code=400, detail="查询不能为空")
 
+    # 多轮对话：记忆 agent 解析省略指代（如「那风险呢」→ 补齐股票代码）
+    resolved_query = resolve_query(req.history, query) if req.history else query
+
     collected: list = []
     broadcast_tasks: list = []
 
@@ -124,7 +128,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
     monitor = LangGraphCallback(on_trace=on_trace)
     graph = build_graph()
-    final_state = await monitor.run(graph, {"query": query})
+    final_state = await monitor.run(graph, {"query": resolved_query})
 
     # 确保进度广播全部发出
     if broadcast_tasks:
