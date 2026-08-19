@@ -7,8 +7,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from demo_advisory.agents._llm import get_llm, load_prompt
 
-SYSTEM_PROMPT = load_prompt("compliance_checker.md")
-
 
 def run(state: dict) -> dict:
     decision = state.get("decision", "")
@@ -19,8 +17,9 @@ def run(state: dict) -> dict:
 
     try:
         llm = get_llm(temperature=0.0)  # 合规审查零温度，确保一致性
+        system_prompt = load_prompt("compliance_checker.md")
         response = llm.invoke([
-            SystemMessage(content=SYSTEM_PROMPT),
+            SystemMessage(content=system_prompt),
             HumanMessage(content=f"请审查以下关于 {name} 的投资建议:\n\n{decision}"),
         ])
         result = response.content

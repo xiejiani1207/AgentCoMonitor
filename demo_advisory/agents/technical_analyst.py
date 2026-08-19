@@ -4,8 +4,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from demo_advisory.agents._llm import get_llm, load_prompt
 
-SYSTEM_PROMPT = load_prompt("technical_analyst.md")
-
 
 def run(state: dict) -> dict:
     collected = state.get("collected_data")
@@ -41,8 +39,9 @@ def run(state: dict) -> dict:
 
     try:
         llm = get_llm()
+        system_prompt = load_prompt("technical_analyst.md")
         response = llm.invoke([
-            SystemMessage(content=SYSTEM_PROMPT),
+            SystemMessage(content=system_prompt),
             HumanMessage(content=user_message),
         ])
         report = response.content

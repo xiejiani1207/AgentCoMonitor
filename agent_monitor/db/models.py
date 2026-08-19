@@ -158,3 +158,24 @@ class OptimizationSuggestion(Base):
     content = Column(Text, nullable=False)
     structured_cmd = Column(JSONB, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
+
+
+class AgentInstruction(Base):
+    """反馈指令库——监控反馈的改进指令，demo 运行时读取注入 prompt。
+
+    去重覆盖：同一 (target_agent, dimension) 的新指令会 supersede 旧指令。
+    """
+
+    __tablename__ = "agent_instructions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    target_agent = Column(String(128), nullable=False)
+    dimension = Column(String(32), nullable=False)
+    instruction = Column(Text, nullable=False)
+    status = Column(String(16), nullable=False, default="active")  # active/superseded/applied/expired
+    priority = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+
+    __table_args__ = (
+        Index("idx_instructions_agent_status", "target_agent", "status"),
+    )

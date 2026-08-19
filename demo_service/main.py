@@ -14,7 +14,9 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent_monitor.adapters.langgraph import LangGraphCallback
+from agent_monitor.core.instructions import get_active_instructions
 from agent_monitor.core.pipeline import MonitoringPipeline
+from demo_advisory.agents._llm import set_active_instructions
 from demo_advisory.graph import build_graph
 from demo_service.schemas import (
     AdvisoryReport,
@@ -87,6 +89,9 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
     collected: list = []
     broadcast_tasks: list = []
+
+    # 注入监控反馈的活跃优化指令（动态指令库）
+    set_active_instructions(await get_active_instructions())
 
     def on_trace(trace):
         collected.append(trace)
