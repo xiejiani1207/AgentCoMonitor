@@ -50,3 +50,66 @@
 | 导师对方向有不同意见 | 已通过 |
 | LLM API 稳定性 | 规则层兜底，LLM 失败自动降级 |
 | ruff CI 版本不一致 | 已解决：pyproject.toml 配置豁免规则 |
+
+## 性能优化 Backlog
+
+- [ ] 并行化 LLM-as-Judge：`evaluate_async` 内 accuracy/relevance 用 `asyncio.gather` 并行；runner 里 6 条 trace 用 `asyncio.gather` 并行（需先把 `_ensure_task_exists` 改为幂等，避免并发建 task 触发唯一约束冲突）。预期单次 demo 从 ~40s 降到 ~15s。
+- [ ] 复用 httpx HTTP 连接：`llm_client.py` 的 `llm_chat` 每次新建 `httpx.AsyncClient`，改为模块级单例复用连接，省掉每次 TLS 握手开销。
+
+## 迭代规划（Phase 3 后）
+
+### 想法 1：投顾 demo 前端 Chat 页面（先做，单轮优先）
+
+| 决策项 | 结论 |
+|--------|------|
+| 定位 | 单轮问答优先，多轮后续迭代 |
+| 多轮方案 | 新增「记忆 agent」= 上下文摘要/画像 agent（压缩历史 + 抽取结构化上下文） |
+| 前端位置 | 并入现有 dashboard，新增 `/chat` 路由 |
+| 输入 | 自由文本 + 示例快捷按钮（chip） |
+| 接口形态 | 同步 REST + 步骤条（复用 /ws `trace_updated` 驱动） |
+| 展示 | 分段卡片报告 + 底部监控徽章（质量分/合规/异常） |
+| 监控接入 | 每次问答走监控管线（采集 → 异常/质量/筛选） |
+
+关键实现前提：步骤条要实时点亮，需把采集从「先跑完 graph 再批量落库」改成「边执行边落库」（每个 Agent 结束即 save + 广播）。
+
+### 想法 2：监控 → demo 反馈闭环（后做）
+
+| 决策项 | 结论 |
+|--------|------|
+| 动态更新机制 | 动态指令库（反馈 = 一条「目标 Agent + 维度 + 改进指令」，Agent 运行时读取生效指令注入 prompt） |
+| 指令库膨胀治理 | 去重覆盖（按 Agent+维度唯一）+ 状态机（active/superseded/applied/expired）+ 数量上限（每 Agent 3~5 条）；生产规模再加 LLM 压缩（复用记忆 agent） |
+| 传输机制 | HTTP 推送（投顾服务暴露 `POST /feedback`，监控服务 httpx 调用） |
+| 进程架构 | 两个 FastAPI 进程：监控服务 8000 + 投顾服务 8001 |
+| trace 采集 | 投顾服务直接写共享 DB（保留「HTTP 推 trace」作为 B 备选方案） |
+| 触发条件 | 三类都触发：合规违规 > 高危异常 > 质量分<阈值；阈值从 70 上调到 75 |
+| 演示保证 | 阈值 75 + 「演示模式」注入破绽（透明标注，确定性演示反馈闭环） |
+| 自动化程度 | 全自动生效 + 人工可查/可撤销（指令库可回溯，人可手动 disable） |
+
+### 组件边界（共享 vs 独立）
+
+| 资源 | 归属 | 说明 |
+|------|------|------|
+| Neon 数据库 | **共享** | 唯一共享资源：投顾服务写 trace/质量/异常/建议 + 指令库；监控服务读这些 + 写反馈指令 |
+| 前端 Dashboard | **共享** | 一个 React app：监控页面 + `/chat` 页面 |
+| 监控服务 (8000) | 独立 | agent_monitor/api：REST + WebSocket + 反馈生成 |
+| 投顾服务 (8001) | 独立 | 新 FastAPI：`/chat` + `/feedback`（orchestrator，import 双方） |
+| demo_advisory/ | 独立（零侵入） | 不 import agent_monitor |
+| agent_monitor/ | 独立 | 不 import demo_advisory |
+| LLM 密钥 | 独立 | AM_LLM_*（监控 judge）vs DEMO_LLM_*（demo agents） |
+
+### 跨服务交互（HTTP 边界）
+
+- 监控服务 → 投顾服务 `/feedback`：HTTP POST（唯一跨服务调用 = 反馈链路）
+- 投顾服务 → 共享 DB：写 trace（不跨服务，直接写库）
+- 前端 → 监控服务 `/api/*` + `/ws`：监控页面
+- 前端 → 投顾服务 `/chat`：chat 页面（Vite 需新增代理规则）
+
+### 实施顺序
+
+1. 【想法1】投顾服务雏形：`/chat` 端点（跑 demo + 适配器 + 管线，同步返回报告）
+2. 【想法1】chat 前端页面（`/chat` 路由 + 输入框 + 示例 chip + 步骤条 + 分段报告 + 监控徽章）
+3. 【想法1】采集改「边执行边落库」+ 步骤条实时联动
+4. 【想法2】指令库表 + demo 运行时读取注入
+5. 【想法2】监控服务反馈生成器 + HTTP 推送 `/feedback`
+6. 【想法2】演示模式注入破绽
+7. 【迭代】多轮对话 + 记忆 agent

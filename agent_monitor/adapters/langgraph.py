@@ -36,26 +36,33 @@ class LangGraphCallback(MonitoringAdapter):
     def get_framework_name(self) -> str:
         return "langgraph"
 
-    async def run(self, graph, input: dict, config: dict | None = None) -> None:
-        """运行 graph，采集每个节点的 Trace 并通过 on_trace 发出。"""
+    async def run(self, graph, input: dict, config: dict | None = None) -> dict:
+        """运行 graph，采集每个节点的 Trace 并返回最终状态。"""
         # 一次 graph 运行 = 一个 task；每个节点有独立的 run_id（trace_id）
         self._task_id = str(uuid.uuid4())
         self._active = {}
         self._trace_ids = {}
         self._parent_map = self._build_parent_map(graph)
+        final_state: dict = {}
 
         async for event in graph.astream_events(input, version="v2", config=config):
             metadata = event.get("metadata") or {}
             name = metadata.get("langgraph_node")
-            if not name:
-                continue  # 跳过图级事件，只采集节点
-            kind = event["event"]
-            if kind == "on_chain_start":
-                self._on_node_start(name, event)
-            elif kind == "on_chain_end":
-                self._on_node_end(name, event)
-            elif kind == "on_chain_error":
-                self._on_node_error(name, event)
+            if name:
+                kind = event["event"]
+                if kind == "on_chain_start":
+                    self._on_node_start(name, event)
+                elif kind == "on_chain_end":
+                    self._on_node_end(name, event)
+                elif kind == "on_chain_error":
+                    self._on_node_error(name, event)
+            elif event["event"] == "on_chain_end":
+                # 图级结束事件：携带最终状态
+                output = event.get("data", {}).get("output")
+                if isinstance(output, dict):
+                    final_state = output
+
+        return final_state
 
     # ---- 内部 ----
 
