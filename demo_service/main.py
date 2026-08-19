@@ -136,6 +136,11 @@ async def chat(req: ChatRequest) -> ChatResponse:
             detail=final_state.get("error") or "未找到匹配的股票",
         )
 
+    # 演示模式：注入合规违规 + 超时异常（透明标注）
+    if req.demo_mode:
+        inject_issues(collected)
+        logger.info("演示模式：已注入合规违规 + 超时异常")
+
     # 逐条 Trace 走监控管线（采集/异常/质量/建议 → 落库）
     pipeline = MonitoringPipeline()
     processed = []
@@ -162,6 +167,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             final_output=final_state.get("final_output", ""),
         ),
         monitoring=_build_monitoring(collected, processed),
+        demo_mode=req.demo_mode,
     )
 
 
@@ -202,6 +208,15 @@ async def _request_feedback(task_id: str) -> None:
             resp.raise_for_status()
     except Exception as exc:
         logger.warning("触发反馈生成失败（监控服务未启动?）: %s", exc)
+
+
+def inject_issues(collected: list) -> None:
+    """演示模式：注入合规违规 + 超时异常，确保反馈闭环稳定触发。"""
+    for trace in collected:
+        if trace.agent_name == "decision_maker":
+            trace.output_content += "\n\n【演示注入】保证收益。稳赚不赔。"
+        elif trace.agent_name == "technical_analyst":
+            trace.duration_ms = 35000  # 超过默认 30s 超时阈值
 
 
 def _build_monitoring(collected: list, processed: list) -> MonitoringSummary:

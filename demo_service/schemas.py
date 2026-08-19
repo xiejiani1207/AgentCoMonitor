@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     query: str
+    demo_mode: bool = False
 
 
 class AdvisoryReport(BaseModel):
@@ -38,6 +39,7 @@ class ChatResponse(BaseModel):
     query: str
     report: AdvisoryReport
     monitoring: MonitoringSummary
+    demo_mode: bool = False
 
 
 class FeedbackItem(BaseModel):

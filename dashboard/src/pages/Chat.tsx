@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Collapse, Input, Space, Spin, Tag, Typography } from "antd";
+import { Button, Card, Collapse, Input, Space, Spin, Switch, Tag, Typography } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   RobotOutlined,
   SendOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { chat, ChatResponse } from "../api/client";
 
@@ -48,6 +49,7 @@ export default function Chat() {
   const [result, setResult] = useState<ChatResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [doneAgents, setDoneAgents] = useState<string[]>([]);
+  const [demoMode, setDemoMode] = useState(false);
 
   // 连接投顾服务的进度 WebSocket，实时点亮步骤条
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function Chat() {
     setResult(null);
     setDoneAgents([]);
     try {
-      setResult(await chat(text));
+      setResult(await chat(text, demoMode));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -95,6 +97,10 @@ export default function Chat() {
       </Text>
 
       <Card style={{ marginTop: 16 }}>
+        <Space style={{ marginBottom: 12 }}>
+          <Switch checked={demoMode} onChange={setDemoMode} />
+          <Text type="secondary">演示模式：注入合规违规 + 超时异常</Text>
+        </Space>
         <Input.TextArea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -167,6 +173,12 @@ export default function Chat() {
 
       {result && (
         <>
+          {result.demo_mode && (
+            <Card style={{ marginTop: 16, background: "#fff7e6" }}>
+              <Tag color="orange" icon={<WarningOutlined />}>演示模式</Tag>
+              <Text>本次已人为注入破绽（合规违规 + 超时），用于演示反馈闭环</Text>
+            </Card>
+          )}
           <Card
             title={`${result.report.stock_name ?? ""} (${result.report.stock_code ?? ""})`}
             style={{ marginTop: 16 }}

@@ -105,13 +105,14 @@ export interface ChatResponse {
   query: string;
   report: AdvisoryReport;
   monitoring: MonitoringSummary;
+  demo_mode: boolean;
 }
 
-export async function chat(query: string): Promise<ChatResponse> {
+export async function chat(query: string, demoMode = false): Promise<ChatResponse> {
   const res = await fetch("/advisory/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, demo_mode: demoMode }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
