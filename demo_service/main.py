@@ -9,22 +9,35 @@ demo_advisory/ 自身仍保持零侵入。
 
 import asyncio
 import json
+import logging
+import os
 
+import httpx
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import update
 
 from agent_monitor.adapters.langgraph import LangGraphCallback
 from agent_monitor.core.instructions import get_active_instructions
 from agent_monitor.core.pipeline import MonitoringPipeline
+from agent_monitor.db.models import AgentInstruction
+from agent_monitor.db.session import async_session
 from demo_advisory.agents._llm import set_active_instructions
 from demo_advisory.graph import build_graph
 from demo_service.schemas import (
     AdvisoryReport,
     ChatRequest,
     ChatResponse,
+    FeedbackItem,
     MonitoringSummary,
     TraceSummary,
 )
+
+logger = logging.getLogger(__name__)
+
+# 监控服务地址（反馈生成器调用）
+MONITOR_URL = os.environ.get("MONITOR_URL", "http://localhost:8000")
+
 
 app = FastAPI(title="投顾 Demo 服务", version="0.1.0")
 
@@ -131,6 +144,10 @@ async def chat(req: ChatRequest) -> ChatResponse:
     if collected:
         await pipeline.finalize_task(collected[0].task_id)
 
+    # 触发监控反馈生成（自动闭环：监控 → 反馈 → 指令库）
+    if collected:
+        await _request_feedback(collected[0].task_id)
+
     return ChatResponse(
         query=query,
         report=AdvisoryReport(
@@ -146,6 +163,45 @@ async def chat(req: ChatRequest) -> ChatResponse:
         ),
         monitoring=_build_monitoring(collected, processed),
     )
+
+
+@app.post("/advisory/feedback")
+async def receive_feedback(items: list[FeedbackItem]):
+    """接收监控推送的反馈指令，写入指令库（同 agent+dimension 去重覆盖）。"""
+    saved = 0
+    async with async_session() as session:
+        for item in items:
+            await session.execute(
+                update(AgentInstruction)
+                .where(
+                    AgentInstruction.target_agent == item.target_agent,
+                    AgentInstruction.dimension == item.dimension,
+                    AgentInstruction.status == "active",
+                )
+                .values(status="superseded")
+            )
+            session.add(AgentInstruction(
+                target_agent=item.target_agent,
+                dimension=item.dimension,
+                instruction=item.instruction,
+                priority=item.priority,
+                status="active",
+            ))
+            saved += 1
+        await session.commit()
+    return {"saved": saved}
+
+
+async def _request_feedback(task_id: str) -> None:
+    """调用监控服务的反馈生成器（自动闭环）。监控服务未启动时静默跳过。"""
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{MONITOR_URL}/api/feedback/generate", json={"task_id": task_id}
+            )
+            resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("触发反馈生成失败（监控服务未启动?）: %s", exc)
 
 
 def _build_monitoring(collected: list, processed: list) -> MonitoringSummary:

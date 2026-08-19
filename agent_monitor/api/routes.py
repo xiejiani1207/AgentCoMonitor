@@ -6,12 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_monitor.api.schemas import (
     AnomalyOut,
+    FeedbackRequest,
     QualityScoreOut,
     SuggestionOut,
     TaskOut,
     TraceOut,
 )
 from agent_monitor.api.websocket import ws_manager
+from agent_monitor.core.feedback import generate_and_push_feedback
 from agent_monitor.db.models import (
     AnomalyEvent,
     OptimizationSuggestion,
@@ -115,6 +117,15 @@ async def list_suggestions(
     stmt = stmt.limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+# ---- Feedback ----
+
+@router.post("/feedback/generate")
+async def generate_feedback(req: FeedbackRequest):
+    """根据 task 的质检结果生成反馈指令，并 HTTP 推送到投顾服务。"""
+    feedback = await generate_and_push_feedback(req.task_id)
+    return {"generated": feedback}
 
 
 # ---- WebSocket ----

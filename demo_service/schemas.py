@@ -38,3 +38,10 @@ class ChatResponse(BaseModel):
     query: str
     report: AdvisoryReport
     monitoring: MonitoringSummary
+
+
+class FeedbackItem(BaseModel):
+    target_agent: str
+    dimension: str
+    instruction: str
+    priority: int = 0

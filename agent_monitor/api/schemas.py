@@ -88,6 +88,12 @@ class SuggestionOut(BaseModel):
         from_attributes = True
 
 
+# ---- Feedback ----
+
+class FeedbackRequest(BaseModel):
+    task_id: str
+
+
 # ---- WebSocket Events ----
 
 class WsEvent(BaseModel):
