@@ -28,7 +28,7 @@
 - [ ] Web Dashboard 前端（React + AntV G6 + ECharts）
 
 ### Phase 4: 文档与交付
-- [ ] 软件工程文档（需求/设计/开发/使用说明）
+- [x] 软件工程文档（需求/设计/开发/使用说明）
 - [ ] 演示 PPT
 - [ ] **门禁: 文档齐全 + Demo 全链路可演示**
 
@@ -113,3 +113,8 @@
 5. 【想法2】监控服务反馈生成器 + HTTP 推送 `/feedback`
 6. 【想法2】演示模式注入破绽
 7. 【迭代】多轮对话 + 记忆 agent
+
+### 可选优化 Backlog（非必需，导师有要求再做）
+
+- [ ] 多轮对话持久化：当前历史存前端 React state，刷新即失。可加 `conversations` 表 + `conversation_id`，前端用 localStorage 记会话 ID，后端按 ID 存取历史。
+- [ ] 反馈指令 LLM 生成：当前指令文本是 `feedback.py` 的 `INSTRUCTION_TEMPLATES` 预设模板（触发是智能的，文本是查表）。可改为 LLM 根据具体输出动态生成更具体的指令，代价是更贵、更不可控。

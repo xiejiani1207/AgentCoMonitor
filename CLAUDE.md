@@ -63,6 +63,10 @@ uvicorn agent_monitor.api.main:app --reload  # 启动 API
 
 | 文档 | 路径 |
 |------|------|
+| 需求规格说明书 | docs/requirements.md |
+| 系统设计文档 | docs/design.md |
+| 开发文档 | docs/development.md |
+| 用户使用说明 | docs/user-guide.md |
 | 完整设计 | docs/superpowers/specs/2026-07-10-agent-monitoring-system-design.md |
 | 精炼设计 | docs/superpowers/specs/2026-07-10-design-summary.md |
 | 项目规划 | planning/task_plan.md |
