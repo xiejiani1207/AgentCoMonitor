@@ -156,8 +156,9 @@ async def chat(req: ChatRequest) -> ChatResponse:
         await pipeline.finalize_task(collected[0].task_id)
 
     # 触发监控反馈生成（自动闭环：监控 → 反馈 → 指令库）
+    feedback = []
     if collected:
-        await _request_feedback(collected[0].task_id)
+        feedback = await _request_feedback(collected[0].task_id)
 
     return ChatResponse(
         query=query,
@@ -174,6 +175,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         ),
         monitoring=_build_monitoring(collected, processed),
         demo_mode=req.demo_mode,
+        feedback=feedback,
     )
 
 
@@ -204,16 +206,19 @@ async def receive_feedback(items: list[FeedbackItem]):
     return {"saved": saved}
 
 
-async def _request_feedback(task_id: str) -> None:
-    """调用监控服务的反馈生成器（自动闭环）。监控服务未启动时静默跳过。"""
+async def _request_feedback(task_id: str) -> list[FeedbackItem]:
+    """调用监控服务的反馈生成器（自动闭环）。返回生成的反馈指令。"""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"{MONITOR_URL}/api/feedback/generate", json={"task_id": task_id}
             )
             resp.raise_for_status()
+            data = resp.json()
+            return [FeedbackItem(**item) for item in data.get("generated", [])]
     except Exception as exc:
         logger.warning("触发反馈生成失败（监控服务未启动?）: %s", exc)
+        return []
 
 
 def inject_issues(collected: list) -> None:

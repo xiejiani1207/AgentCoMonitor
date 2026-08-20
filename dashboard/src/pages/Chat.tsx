@@ -108,6 +108,19 @@ function ReportCard({ result }: { result: ChatResponse }) {
             ))}
           </Space>
         </div>
+        {result.feedback.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <Text type="secondary">反馈闭环：</Text>
+            <Space wrap size={4} style={{ marginTop: 8 }}>
+              <Tag color="purple">已生成 {result.feedback.length} 条指令回灌 demo</Tag>
+              {result.feedback.map((f, i) => (
+                <Tag key={i} color="purple">
+                  {AGENT_LABELS[f.target_agent] ?? f.target_agent} / {f.dimension}
+                </Tag>
+              ))}
+            </Space>
+          </div>
+        )}
       </Card>
     </>
   );

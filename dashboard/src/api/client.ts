@@ -101,11 +101,19 @@ export interface MonitoringSummary {
   min_compliance: number | null;
 }
 
+export interface FeedbackItem {
+  target_agent: string;
+  dimension: string;
+  instruction: string;
+  priority: number;
+}
+
 export interface ChatResponse {
   query: string;
   report: AdvisoryReport;
   monitoring: MonitoringSummary;
   demo_mode: boolean;
+  feedback: FeedbackItem[];
 }
 
 export async function chat(query: string, demoMode = false, history: string[] = []): Promise<ChatResponse> {

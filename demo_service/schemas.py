@@ -36,15 +36,16 @@ class MonitoringSummary(BaseModel):
     min_compliance: float | None = None
 
 
-class ChatResponse(BaseModel):
-    query: str
-    report: AdvisoryReport
-    monitoring: MonitoringSummary
-    demo_mode: bool = False
-
-
 class FeedbackItem(BaseModel):
     target_agent: str
     dimension: str
     instruction: str
     priority: int = 0
+
+
+class ChatResponse(BaseModel):
+    query: str
+    report: AdvisoryReport
+    monitoring: MonitoringSummary
+    demo_mode: bool = False
+    feedback: list[FeedbackItem] = []
