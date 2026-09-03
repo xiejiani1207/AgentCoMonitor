@@ -34,3 +34,7 @@ skills-lock.json
 *.db
 pgdata/
 
+# Office 临时锁文件
+~$*
+.~lock.*
+
