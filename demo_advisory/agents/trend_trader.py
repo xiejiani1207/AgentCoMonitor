@@ -1,4 +1,4 @@
-"""Agent 5: 综合决策 Agent。"""
+"""Agent 5b: 趋势交易决策 Agent（偏技术面）。"""
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -12,9 +12,8 @@ def run(state: dict) -> dict:
     name = state.get("stock_name", "未知")
 
     if not tech or not fund or not risk:
-        return {**state, "decision": "错误: 缺少分析报告"}
+        return {"decision_trend": "错误: 缺少分析报告"}
 
-    # 组装上下文
     context = (
         f"股票: {name}\n\n"
         f"=== 技术面分析 ===\n{tech}\n\n"
@@ -26,13 +25,13 @@ def run(state: dict) -> dict:
 
     try:
         llm = get_llm(temperature=0.2)
-        system_prompt = load_prompt("decision_maker.md")
+        system_prompt = load_prompt("trend_trader.md")
         response = llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=context),
         ])
         decision = response.content
     except Exception as e:
-        decision = f"综合决策生成失败: {e}"
+        decision = f"趋势交易决策生成失败: {e}"
 
-    return {"decision": decision}
+    return {"decision_trend": decision}

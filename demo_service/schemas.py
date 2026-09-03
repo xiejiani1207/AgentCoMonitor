@@ -22,7 +22,7 @@ class AdvisoryReport(BaseModel):
     risk_report: str = ""
     decision: str = ""
     compliance_result: str = ""
-    compliance_score: int | None = None
+    compliance_score: float | None = None
     final_output: str = ""
     violations: list[ViolationItem] = []
 

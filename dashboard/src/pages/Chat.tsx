@@ -24,7 +24,9 @@ const AGENT_LABELS: Record<string, string> = {
   technical_analyst: "技术面",
   fundamental_analyst: "基本面",
   risk_assessor: "风控",
-  decision_maker: "决策",
+  value_investor: "价值投资",
+  trend_trader: "趋势交易",
+  decision_maker: "综合决策",
   compliance_checker: "合规",
 };
 
@@ -33,8 +35,9 @@ const AGENT_ORDER = [
   "technical_analyst",
   "fundamental_analyst",
   "risk_assessor",
+  "value_investor",
+  "trend_trader",
   "decision_maker",
-  "compliance_checker",
 ];
 
 const REPORT_SECTIONS = [

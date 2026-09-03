@@ -7,6 +7,7 @@ engine = create_async_engine(
     settings.database_url,
     echo=False,
     connect_args=settings.database_connect_args,
+    pool_pre_ping=True,  # Neon 会回收空闲连接，用前 ping 探测避免 "connection is closed"
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

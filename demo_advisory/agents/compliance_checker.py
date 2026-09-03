@@ -1,19 +1,19 @@
-"""Agent 6: 合规判断 Agent。
+"""合规判断——独立 LLM 语义合规审查（已从图节点改为后置函数）。
 
-这是 Demo 链路的最后一道闸门——审查综合决策的输出，判断能否对外发布。
+由 orchestrator（demo_service）在筛选出最优决策后调用，做语义合规兜底。
 """
+
+import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from demo_advisory.agents._llm import get_llm, load_prompt
 
 
-def run(state: dict) -> dict:
-    decision = state.get("decision", "")
-    name = state.get("stock_name", "未知")
-
+def review_compliance(decision: str, name: str = "未知") -> dict:
+    """审查一段投资决策，返回 {score, result}。"""
     if not decision:
-        return {**state, "compliance_result": "错误: 无决策内容"}
+        return {"score": 0, "result": "错误: 无决策内容"}
 
     try:
         llm = get_llm(temperature=0.0)  # 合规审查零温度，确保一致性
@@ -26,21 +26,7 @@ def run(state: dict) -> dict:
     except Exception as e:
         result = f"合规审查失败: {e}"
 
-    # 解析合规评分
-    import re
     match = re.search(r"合规评分:\s*(\d+)", result)
     score = int(match.group(1)) if match else 0
 
-    # 判断是否通过
-    if score >= 70:
-        final_output = f"[合规通过 评分:{score}]\n\n{decision}"
-    elif score >= 40:
-        final_output = f"[合规风险 评分:{score} 需修改]\n\n{decision}\n\n---\n合规审查意见:\n{result}"
-    else:
-        final_output = f"[合规拦截 评分:{score} 需人工审核]\n\n内容已被合规系统拦截，请人工审核后发布。"
-
-    return {
-        "compliance_result": result,
-        "compliance_score": score,
-        "final_output": final_output,
-    }
+    return {"score": score, "result": result}

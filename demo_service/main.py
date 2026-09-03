@@ -28,6 +28,7 @@ from agent_monitor.core.sensitive_words import (
 from agent_monitor.db.models import AgentInstruction, AnomalyEvent
 from agent_monitor.db.session import async_session
 from demo_advisory.agents._llm import set_active_instructions
+from demo_advisory.agents.compliance_checker import review_compliance
 from demo_advisory.agents.memory_agent import run as resolve_query
 from demo_advisory.graph import build_graph
 from demo_service.schemas import (
@@ -45,6 +46,12 @@ logger = logging.getLogger(__name__)
 
 # 监控服务地址（反馈生成器调用）
 MONITOR_URL = os.environ.get("MONITOR_URL", "http://localhost:8000")
+
+# 三个候选决策 Agent（结果筛选优化排序对象）
+DECISION_AGENTS = {"value_investor", "trend_trader", "decision_maker"}
+
+# 演示模式 B2 兜底的自然激进话术
+DEMO_RADICAL_TEXT = "该股确定性极强，预计未来一年必然上涨，持有稳赚不赔，可放心满仓买入。"
 
 
 app = FastAPI(title="投顾 Demo 服务", version="0.1.0")
@@ -137,7 +144,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
     monitor = LangGraphCallback(on_trace=on_trace)
     graph = build_graph()
-    final_state = await monitor.run(graph, {"query": resolved_query})
+    final_state = await monitor.run(graph, {"query": resolved_query, "demo_mode": req.demo_mode})
 
     # 确保进度广播全部发出
     if broadcast_tasks:
@@ -148,11 +155,6 @@ async def chat(req: ChatRequest) -> ChatResponse:
             status_code=404,
             detail=final_state.get("error") or "未找到匹配的股票",
         )
-
-    # 演示模式：注入合规违规 + 超时异常（透明标注）
-    if req.demo_mode:
-        inject_issues(collected, final_state)
-        logger.info("演示模式：已注入合规违规 + 超时异常")
 
     # 逐条 Trace 走监控管线（并发处理；先预建 task 避免并发建 task 冲突）
     pipeline = MonitoringPipeline()
@@ -169,18 +171,35 @@ async def chat(req: ChatRequest) -> ChatResponse:
     if collected:
         feedback = await _request_feedback(collected[0].task_id)
 
-    # 句级合规检测 + 拦截（在决策输出上）
-    decision = final_state.get("decision", "")
-    detection = detect_sensitive_sentences(decision)
+    # 三个候选决策（价值/趋势/综合）
+    decisions = {
+        "value_investor": final_state.get("decision_value", ""),
+        "trend_trader": final_state.get("decision_trend", ""),
+        "decision_maker": final_state.get("decision", ""),
+    }
+
+    # 结果筛选优化：只对三个候选决策排序（异常过滤 → 质量排序 → 去重 → 推荐）
+    ranking = _rank_candidates(pipeline, processed)
+
+    # 采纳最优候选
+    adopted_name = ranking[0].agent_name if ranking else "decision_maker"
+    adopted_decision = decisions.get(adopted_name, "")
+
+    # 演示模式 B2 兜底：采纳决策无违规时，注入自然激进话术
+    if req.demo_mode:
+        adopted_decision = _apply_demo_fallback(adopted_decision)
+
+    # 句级合规检测 + 拦截（在采纳的决策上）
+    detection = detect_sensitive_sentences(adopted_decision)
     violations = detection["violations"]
-    clean_decision = intercept_sentences(decision, violations)
+    clean_decision = intercept_sentences(adopted_decision, violations)
 
     # 记录拦截（复用 anomaly_events，compliance_violation 类型）
     if violations and collected:
         await _record_interception(collected[0].task_id, violations)
 
-    # 结果筛选优化（排序：异常过滤 → 质量排序 → 去重 → 推荐）
-    ranking = pipeline.rank(processed)
+    # LLM 语义合规审查（后置，兜底）
+    compliance = review_compliance(adopted_decision, final_state.get("stock_name", "未知"))
 
     return ChatResponse(
         query=query,
@@ -190,9 +209,9 @@ async def chat(req: ChatRequest) -> ChatResponse:
             technical_report=final_state.get("technical_report", ""),
             fundamental_report=final_state.get("fundamental_report", ""),
             risk_report=final_state.get("risk_report", ""),
-            decision=decision,
-            compliance_result=final_state.get("compliance_result", ""),
-            compliance_score=final_state.get("compliance_score"),
+            decision=adopted_decision,
+            compliance_result=compliance["result"],
+            compliance_score=detection["score"],
             final_output=clean_decision,
             violations=[ViolationItem(**v) for v in violations],
         ),
@@ -253,16 +272,27 @@ async def _request_feedback(task_id: str) -> list[FeedbackItem]:
         return []
 
 
-def inject_issues(collected: list, final_state: dict) -> None:
-    """演示模式：注入合规违规 + 超时异常，确保反馈闭环稳定触发。"""
-    for trace in collected:
-        if trace.agent_name == "decision_maker":
-            trace.output_content += "\n\n【演示注入】保证收益。稳赚不赔。"
-        elif trace.agent_name == "technical_analyst":
-            trace.duration_ms = 35000  # 超过默认 30s 超时阈值
-    # 同时把违规注入到决策文本，供句级检测/拦截
-    decision = final_state.get("decision", "")
-    final_state["decision"] = decision + "\n\n【演示注入】保证收益。稳赚不赔。"
+def _apply_demo_fallback(decision: str) -> str:
+    """B2 兜底：若决策无违规，注入自然激进话术。"""
+    if detect_sensitive_sentences(decision)["violations"]:
+        return decision
+    return (decision + "\n\n" + DEMO_RADICAL_TEXT).strip()
+
+
+def _rank_candidates(pipeline: MonitoringPipeline, processed: list) -> list:
+    """只对三个候选决策排序（异常过滤 → 质量排序 → 去重 → 推荐）。"""
+    candidates = [
+        {
+            "trace_id": p["trace"].trace_id,
+            "agent_name": p["trace"].agent_name,
+            "output_content": p["trace"].output_content,
+            "quality_score": p["quality"].overall_score,
+            "anomaly_count": len(p["anomalies"]),
+        }
+        for p in processed
+        if p["trace"].agent_name in DECISION_AGENTS
+    ]
+    return pipeline.optimizer.rank(candidates)
 
 
 async def _record_interception(task_id: str, violations: list[dict]) -> None:
