@@ -49,8 +49,34 @@ export interface QualityScore {
   created_at: string;
 }
 
+export interface SensitiveWord {
+  id: number;
+  word: string;
+  category: string;
+  created_at: string;
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || `${res.status}`);
+  }
+  return res.json();
+}
+
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
 }
@@ -63,6 +89,10 @@ export const api = {
   anomalies: (taskId?: string) =>
     get<AnomalyEvent[]>(`/anomalies?limit=50${taskId ? `&task_id=${taskId}` : ""}`),
   quality: (traceId: string) => get<QualityScore>(`/quality/${traceId}`),
+  sensitiveWords: () => get<SensitiveWord[]>("/sensitive-words"),
+  addSensitiveWord: (word: string, category: string) =>
+    post<SensitiveWord>("/sensitive-words", { word, category }),
+  deleteSensitiveWord: (id: number) => del<{ deleted: boolean }>(`/sensitive-words/${id}`),
 };
 
 // 后端存的是 naive UTC（datetime.utcnow()），API 返回无时区后缀的 ISO 字符串。
@@ -74,6 +104,11 @@ export function formatTime(iso: string): string {
 
 // ---- 投顾 demo 服务（8001）----
 
+export interface ViolationItem {
+  sentence: string;
+  words: string[];
+}
+
 export interface AdvisoryReport {
   stock_code: string | null;
   stock_name: string | null;
@@ -84,6 +119,7 @@ export interface AdvisoryReport {
   compliance_result: string;
   compliance_score: number | null;
   final_output: string;
+  violations: ViolationItem[];
 }
 
 export interface TraceSummary {
@@ -108,12 +144,20 @@ export interface FeedbackItem {
   priority: number;
 }
 
+export interface RankedResult {
+  agent_name: string;
+  quality_score: number;
+  rank: number;
+  recommendation: string;
+}
+
 export interface ChatResponse {
   query: string;
   report: AdvisoryReport;
   monitoring: MonitoringSummary;
   demo_mode: boolean;
   feedback: FeedbackItem[];
+  ranking: RankedResult[];
 }
 
 export async function chat(query: string, demoMode = false, history: string[] = []): Promise<ChatResponse> {

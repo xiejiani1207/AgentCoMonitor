@@ -9,7 +9,7 @@ import {
   UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { chat, ChatResponse } from "../api/client";
+import { chat, ChatResponse, ViolationItem } from "../api/client";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -45,9 +45,34 @@ const REPORT_SECTIONS = [
   { key: "compliance_result", label: "合规审查" },
 ] as const;
 
+const RECOMMENDATION_LABELS: Record<string, string> = {
+  adopted: "采纳",
+  alternative: "备选",
+  archived: "存档",
+};
+
 interface Turn {
   query: string;
   result: ChatResponse;
+}
+
+function highlightViolations(text: string, violations: ViolationItem[]) {
+  if (!violations.length) return text;
+  const offending = new Set(violations.map((v) => v.sentence.trim()));
+  const parts = text.split(/([。！？!?])/);
+  return (
+    <>
+      {parts.map((part, i) =>
+        offending.has(part.trim()) ? (
+          <span key={i} style={{ background: "#ffccc7", color: "#cf1322", fontWeight: 600 }}>
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
 }
 
 function ReportCard({ result }: { result: ChatResponse }) {
@@ -73,11 +98,25 @@ function ReportCard({ result }: { result: ChatResponse }) {
           items={REPORT_SECTIONS.map((s) => ({
             key: s.key,
             label: s.label,
-            children: (
-              <Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
-                {result.report[s.key] || "（无）"}
-              </Paragraph>
-            ),
+            children:
+              s.key === "decision" ? (
+                <div>
+                  <Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
+                    {highlightViolations(result.report.decision, result.report.violations)}
+                  </Paragraph>
+                  {result.report.violations.length > 0 && (
+                    <Space wrap size={4} style={{ marginTop: 8 }}>
+                      {result.report.violations.map((v, i) => (
+                        <Tag key={i} color="red">命中「{v.words.join("、")}」</Tag>
+                      ))}
+                    </Space>
+                  )}
+                </div>
+              ) : (
+                <Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
+                  {result.report[s.key] || "（无）"}
+                </Paragraph>
+              ),
           }))}
         />
       </Card>
@@ -122,6 +161,28 @@ function ReportCard({ result }: { result: ChatResponse }) {
           </div>
         )}
       </Card>
+
+      {result.ranking.length > 0 && (
+        <Card title="结果筛选优化" style={{ marginTop: 12 }}>
+          <Space wrap size={4}>
+            {result.ranking.map((r) => (
+              <Tag
+                key={r.rank}
+                color={
+                  r.recommendation === "adopted"
+                    ? "green"
+                    : r.recommendation === "alternative"
+                      ? "blue"
+                      : "default"
+                }
+              >
+                #{r.rank} {RECOMMENDATION_LABELS[r.recommendation]}{" "}
+                {AGENT_LABELS[r.agent_name] ?? r.agent_name}（{r.quality_score}）
+              </Tag>
+            ))}
+          </Space>
+        </Card>
+      )}
     </>
   );
 }

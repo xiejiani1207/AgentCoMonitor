@@ -6,12 +6,14 @@ import {
   FileSearchOutlined,
   AlertOutlined,
   RobotOutlined,
+  SafetyOutlined,
 } from "@ant-design/icons";
 import Overview from "./pages/Overview";
 import Topology from "./pages/Topology";
 import TaskDetail from "./pages/TaskDetail";
 import Alerts from "./pages/Alerts";
 import Chat from "./pages/Chat";
+import SensitiveWords from "./pages/SensitiveWords";
 
 const { Header, Content } = Layout;
 
@@ -20,6 +22,7 @@ const navItems = [
   { key: "/topology", icon: <ApartmentOutlined />, label: <Link to="/topology">链路追踪</Link> },
   { key: "/alerts", icon: <AlertOutlined />, label: <Link to="/alerts">异常告警</Link> },
   { key: "/chat", icon: <RobotOutlined />, label: <Link to="/chat">智能投顾</Link> },
+  { key: "/sensitive-words", icon: <SafetyOutlined />, label: <Link to="/sensitive-words">敏感词库</Link> },
 ];
 
 function AppLayout() {
@@ -47,6 +50,7 @@ function AppLayout() {
           <Route path="/task/:taskId" element={<TaskDetail />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/sensitive-words" element={<SensitiveWords />} />
         </Routes>
       </Content>
     </Layout>

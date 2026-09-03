@@ -20,7 +20,12 @@ from sqlalchemy import update
 from agent_monitor.adapters.langgraph import LangGraphCallback
 from agent_monitor.core.instructions import get_active_instructions
 from agent_monitor.core.pipeline import MonitoringPipeline
-from agent_monitor.db.models import AgentInstruction
+from agent_monitor.core.sensitive_words import (
+    detect_sensitive_sentences,
+    intercept_sentences,
+    refresh_sensitive_words,
+)
+from agent_monitor.db.models import AgentInstruction, AnomalyEvent
 from agent_monitor.db.session import async_session
 from demo_advisory.agents._llm import set_active_instructions
 from demo_advisory.agents.memory_agent import run as resolve_query
@@ -31,7 +36,9 @@ from demo_service.schemas import (
     ChatResponse,
     FeedbackItem,
     MonitoringSummary,
+    RankedResultOut,
     TraceSummary,
+    ViolationItem,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,6 +116,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
     # 注入监控反馈的活跃优化指令（动态指令库）
     set_active_instructions(await get_active_instructions())
+    # 刷新敏感词库缓存（合规检测使用）
+    await refresh_sensitive_words()
 
     def on_trace(trace):
         collected.append(trace)
@@ -142,7 +151,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
     # 演示模式：注入合规违规 + 超时异常（透明标注）
     if req.demo_mode:
-        inject_issues(collected)
+        inject_issues(collected, final_state)
         logger.info("演示模式：已注入合规违规 + 超时异常")
 
     # 逐条 Trace 走监控管线（并发处理；先预建 task 避免并发建 task 冲突）
@@ -160,6 +169,19 @@ async def chat(req: ChatRequest) -> ChatResponse:
     if collected:
         feedback = await _request_feedback(collected[0].task_id)
 
+    # 句级合规检测 + 拦截（在决策输出上）
+    decision = final_state.get("decision", "")
+    detection = detect_sensitive_sentences(decision)
+    violations = detection["violations"]
+    clean_decision = intercept_sentences(decision, violations)
+
+    # 记录拦截（复用 anomaly_events，compliance_violation 类型）
+    if violations and collected:
+        await _record_interception(collected[0].task_id, violations)
+
+    # 结果筛选优化（排序：异常过滤 → 质量排序 → 去重 → 推荐）
+    ranking = pipeline.rank(processed)
+
     return ChatResponse(
         query=query,
         report=AdvisoryReport(
@@ -168,14 +190,24 @@ async def chat(req: ChatRequest) -> ChatResponse:
             technical_report=final_state.get("technical_report", ""),
             fundamental_report=final_state.get("fundamental_report", ""),
             risk_report=final_state.get("risk_report", ""),
-            decision=final_state.get("decision", ""),
+            decision=decision,
             compliance_result=final_state.get("compliance_result", ""),
             compliance_score=final_state.get("compliance_score"),
-            final_output=final_state.get("final_output", ""),
+            final_output=clean_decision,
+            violations=[ViolationItem(**v) for v in violations],
         ),
         monitoring=_build_monitoring(collected, processed),
         demo_mode=req.demo_mode,
         feedback=feedback,
+        ranking=[
+            RankedResultOut(
+                agent_name=r.agent_name,
+                quality_score=r.quality_score,
+                rank=r.rank,
+                recommendation=r.recommendation,
+            )
+            for r in ranking
+        ],
     )
 
 
@@ -221,13 +253,33 @@ async def _request_feedback(task_id: str) -> list[FeedbackItem]:
         return []
 
 
-def inject_issues(collected: list) -> None:
+def inject_issues(collected: list, final_state: dict) -> None:
     """演示模式：注入合规违规 + 超时异常，确保反馈闭环稳定触发。"""
     for trace in collected:
         if trace.agent_name == "decision_maker":
             trace.output_content += "\n\n【演示注入】保证收益。稳赚不赔。"
         elif trace.agent_name == "technical_analyst":
             trace.duration_ms = 35000  # 超过默认 30s 超时阈值
+    # 同时把违规注入到决策文本，供句级检测/拦截
+    decision = final_state.get("decision", "")
+    final_state["decision"] = decision + "\n\n【演示注入】保证收益。稳赚不赔。"
+
+
+async def _record_interception(task_id: str, violations: list[dict]) -> None:
+    """把拦截记录写入 anomaly_events（compliance_violation 类型）。"""
+    async with async_session() as session:
+        for v in violations:
+            words = "、".join(v["words"])
+            session.add(AnomalyEvent(
+                trace_id=None,
+                task_id=task_id,
+                anomaly_type="compliance_violation",
+                severity="high",
+                layer="output",
+                description=f"已拦截违规语句：'{v['sentence']}'（命中敏感词：{words}）",
+                suggestion="请删除或修改违规表述",
+            ))
+        await session.commit()
 
 
 def _build_monitoring(collected: list, processed: list) -> MonitoringSummary:

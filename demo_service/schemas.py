@@ -9,6 +9,11 @@ class ChatRequest(BaseModel):
     history: list[str] = []
 
 
+class ViolationItem(BaseModel):
+    sentence: str
+    words: list[str]
+
+
 class AdvisoryReport(BaseModel):
     stock_code: str | None = None
     stock_name: str | None = None
@@ -19,6 +24,7 @@ class AdvisoryReport(BaseModel):
     compliance_result: str = ""
     compliance_score: int | None = None
     final_output: str = ""
+    violations: list[ViolationItem] = []
 
 
 class TraceSummary(BaseModel):
@@ -43,9 +49,17 @@ class FeedbackItem(BaseModel):
     priority: int = 0
 
 
+class RankedResultOut(BaseModel):
+    agent_name: str
+    quality_score: float
+    rank: int
+    recommendation: str
+
+
 class ChatResponse(BaseModel):
     query: str
     report: AdvisoryReport
     monitoring: MonitoringSummary
     demo_mode: bool = False
     feedback: list[FeedbackItem] = []
+    ranking: list[RankedResultOut] = []

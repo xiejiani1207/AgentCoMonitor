@@ -1,6 +1,13 @@
 """REST API 路由。"""
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +15,8 @@ from agent_monitor.api.schemas import (
     AnomalyOut,
     FeedbackRequest,
     QualityScoreOut,
+    SensitiveWordCreate,
+    SensitiveWordOut,
     SuggestionOut,
     TaskOut,
     TraceOut,
@@ -18,6 +27,7 @@ from agent_monitor.db.models import (
     AnomalyEvent,
     OptimizationSuggestion,
     QualityScore,
+    SensitiveWord,
     Task,
     Trace,
 )
@@ -117,6 +127,39 @@ async def list_suggestions(
     stmt = stmt.limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+# ---- Sensitive Words ----
+
+@router.get("/sensitive-words", response_model=list[SensitiveWordOut])
+async def list_sensitive_words(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SensitiveWord).order_by(SensitiveWord.id))
+    return result.scalars().all()
+
+
+@router.post("/sensitive-words", response_model=SensitiveWordOut)
+async def create_sensitive_word(req: SensitiveWordCreate, db: AsyncSession = Depends(get_db)):
+    word = req.word.strip()
+    if not word:
+        raise HTTPException(status_code=400, detail="敏感词不能为空")
+    existing = await db.execute(select(SensitiveWord).where(SensitiveWord.word == word))
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=400, detail="该敏感词已存在")
+    sw = SensitiveWord(word=word, category=req.category.strip() or "未分类")
+    db.add(sw)
+    await db.commit()
+    await db.refresh(sw)
+    return sw
+
+
+@router.delete("/sensitive-words/{word_id}")
+async def delete_sensitive_word(word_id: int, db: AsyncSession = Depends(get_db)):
+    sw = await db.get(SensitiveWord, word_id)
+    if sw is None:
+        raise HTTPException(status_code=404, detail="敏感词不存在")
+    await db.delete(sw)
+    await db.commit()
+    return {"deleted": True}
 
 
 # ---- Feedback ----

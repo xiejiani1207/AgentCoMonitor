@@ -179,3 +179,14 @@ class AgentInstruction(Base):
     __table_args__ = (
         Index("idx_instructions_agent_status", "target_agent", "status"),
     )
+
+
+class SensitiveWord(Base):
+    """敏感词库——合规检测的规则来源，可在 Dashboard 增删。"""
+
+    __tablename__ = "sensitive_words"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    word = Column(String(64), unique=True, nullable=False)
+    category = Column(String(32), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utcnow)

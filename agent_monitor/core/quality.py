@@ -7,15 +7,10 @@ import asyncio
 from dataclasses import dataclass, field
 
 from agent_monitor.core.models import QualityDimension, TraceRecord
+from agent_monitor.core.sensitive_words import get_sensitive_words
 
 # 金融投顾场景默认权重
 DEFAULT_WEIGHTS = QualityDimension.DEFAULT_WEIGHTS
-
-# 合规关键词黑名单
-COMPLIANCE_BLACKLIST = [
-    "保证收益", "稳赚", "无风险", "绝不亏损", "必然", "绝对",
-    "肯定会上涨", "包赚", "保本", "零风险",
-]
 
 
 @dataclass
@@ -116,13 +111,13 @@ class QualityAssessor:
     # ---- Layer 1: 规则检查 ----
 
     def _check_compliance(self, trace: TraceRecord) -> float:
-        """合规性检测——关键词黑名单扫描，返回 0-100 分。"""
+        """合规性检测——敏感词库扫描，返回 0-100 分。"""
         output = trace.output_content or ""
-        violations = [kw for kw in COMPLIANCE_BLACKLIST if kw in output]
+        violations = [kw for kw in get_sensitive_words() if kw in output]
         if not violations:
             return 100.0
-        # 每发现一个违规词扣 25 分，最低 0
-        score = max(0, 100 - len(violations) * 25)
+        # 每命中一个敏感词扣 50 分（有违规即不合格），最低 0
+        score = max(0, 100 - len(violations) * 50)
         return float(score)
 
     def _check_completeness(self, trace: TraceRecord) -> float:

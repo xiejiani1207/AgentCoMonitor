@@ -118,3 +118,36 @@
 
 - [ ] 多轮对话持久化：当前历史存前端 React state，刷新即失。可加 `conversations` 表 + `conversation_id`，前端用 localStorage 记会话 ID，后端按 ID 存取历史。
 - [ ] 反馈指令 LLM 生成：当前指令文本是 `feedback.py` 的 `INSTRUCTION_TEMPLATES` 预设模板（触发是智能的，文本是查表）。可改为 LLM 根据具体输出动态生成更具体的指令，代价是更贵、更不可控。
+
+## 迭代规划（Phase 4 后）：合规增强 + 筛选优化显式化
+
+### 敏感词库（可见 + 可增删）
+- DB 表 `sensitive_words`（word 唯一、category、created_at）
+- CRUD API + Dashboard「敏感词库」页（增删按钮）
+- 检测读取用模块级缓存，增删失效；替换 `quality.py` 硬编码 `COMPLIANCE_BLACKLIST`
+
+### 关键词检测（句级）
+- 输出按 。！？ 切句，逐句匹配敏感词
+- 命中句整句标红 + 标注命中词（作为原因）
+- 评分：每命中一句扣 50 分（1 句 = 50 不合格，2+ = 0）
+
+### 句级拦截
+- 命中句从最终输出移除
+- 复用 `anomaly_events`（新增 `compliance_violation` 类型）记录「已拦截该说法 + 原因」，异常告警页自动展示
+
+### 与 LLM 合规 Agent 并存
+- 关键词线：标红 + 句级拦截 + 评分
+- LLM 合规 Agent：语义评分（兜底，抓"换说法"的违规）
+
+### 结果筛选优化显式化
+- chat 结果加「结果筛选优化」区块：`rank()` 排序（推荐采纳/备选/存档）+ 过滤理由
+
+### 展示
+- 标红在决策/合规检测段，最终输出显示拦截后的干净版
+
+### 实施顺序
+1. 敏感词库（表 + CRUD + dashboard 页 + 缓存读取）
+2. 关键词检测增强（切句 + 返回命中词句 + 每句扣 50 分）
+3. 句级拦截（命中句移除 + compliance_violation 记录）
+4. 前端标红 + 最终输出干净版
+5. chat 加「结果筛选优化」区块

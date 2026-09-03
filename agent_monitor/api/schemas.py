@@ -88,6 +88,23 @@ class SuggestionOut(BaseModel):
         from_attributes = True
 
 
+# ---- Sensitive Words ----
+
+class SensitiveWordOut(BaseModel):
+    id: int
+    word: str
+    category: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SensitiveWordCreate(BaseModel):
+    word: str
+    category: str
+
+
 # ---- Feedback ----
 
 class FeedbackRequest(BaseModel):
