@@ -21,6 +21,11 @@ class AdvisoryReport(BaseModel):
     fundamental_report: str = ""
     risk_report: str = ""
     decision: str = ""
+    decision_value: str = ""
+    decision_trend: str = ""
+    decision_balanced: str = ""
+    adopted_agent: str = ""
+    violated_agent: str = ""
     compliance_result: str = ""
     compliance_score: float | None = None
     final_output: str = ""

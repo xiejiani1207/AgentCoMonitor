@@ -44,9 +44,17 @@ const REPORT_SECTIONS = [
   { key: "technical_report", label: "技术面分析" },
   { key: "fundamental_report", label: "基本面分析" },
   { key: "risk_report", label: "风控评估" },
-  { key: "decision", label: "综合决策" },
+  { key: "decision_value", label: "价值投资决策" },
+  { key: "decision_trend", label: "趋势交易决策" },
+  { key: "decision_balanced", label: "综合决策" },
   { key: "compliance_result", label: "合规审查" },
 ] as const;
+
+const ADOPTED_KEY_MAP: Record<string, string> = {
+  value_investor: "decision_value",
+  trend_trader: "decision_trend",
+  decision_maker: "decision_balanced",
+};
 
 const RECOMMENDATION_LABELS: Record<string, string> = {
   adopted: "采纳",
@@ -98,14 +106,23 @@ function ReportCard({ result }: { result: ChatResponse }) {
       <Card title="分析报告" style={{ marginTop: 12 }}>
         <Collapse
           size="small"
-          items={REPORT_SECTIONS.map((s) => ({
-            key: s.key,
-            label: s.label,
-            children:
-              s.key === "decision" ? (
+          items={REPORT_SECTIONS.map((s) => {
+            const adoptedKey = ADOPTED_KEY_MAP[result.report.adopted_agent] || "";
+            const violatedKey = ADOPTED_KEY_MAP[result.report.violated_agent] || "";
+            const isAdopted = s.key === adoptedKey;
+            const isViolated = s.key === violatedKey;
+            const label = isAdopted
+              ? `${s.label}（已采纳）`
+              : isViolated
+                ? `${s.label}（不合规）`
+                : s.label;
+            return {
+              key: s.key,
+              label,
+              children: isViolated ? (
                 <div>
                   <Paragraph style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
-                    {highlightViolations(result.report.decision, result.report.violations)}
+                    {highlightViolations(result.report[s.key], result.report.violations)}
                   </Paragraph>
                   {result.report.violations.length > 0 && (
                     <Space wrap size={4} style={{ marginTop: 8 }}>
@@ -120,7 +137,8 @@ function ReportCard({ result }: { result: ChatResponse }) {
                   {result.report[s.key] || "（无）"}
                 </Paragraph>
               ),
-          }))}
+            };
+          })}
         />
       </Card>
       <Card title="监控质检" style={{ marginTop: 12 }}>

@@ -53,6 +53,9 @@ DECISION_AGENTS = {"value_investor", "trend_trader", "decision_maker"}
 # 演示模式 B2 兜底的自然激进话术
 DEMO_RADICAL_TEXT = "该股确定性极强，预计未来一年必然上涨，持有稳赚不赔，可放心满仓买入。"
 
+# 合规分低于此值的候选在筛选时直接剔除（命中敏感词即不合格）
+COMPLIANCE_FILTER_THRESHOLD = 60
+
 
 app = FastAPI(title="投顾 Demo 服务", version="0.1.0")
 
@@ -156,6 +159,11 @@ async def chat(req: ChatRequest) -> ChatResponse:
             detail=final_state.get("error") or "未找到匹配的股票",
         )
 
+    # 演示模式 B2 兜底：把违规注入到 value_investor（价值投资），让筛选把它排除
+    violated_agent = ""
+    if req.demo_mode:
+        violated_agent = _apply_demo_fallback(final_state, collected)
+
     # 逐条 Trace 走监控管线（并发处理；先预建 task 避免并发建 task 冲突）
     pipeline = MonitoringPipeline()
     processed = []
@@ -181,25 +189,32 @@ async def chat(req: ChatRequest) -> ChatResponse:
     # 结果筛选优化：只对三个候选决策排序（异常过滤 → 质量排序 → 去重 → 推荐）
     ranking = _rank_candidates(pipeline, processed)
 
-    # 采纳最优候选
+    # 采纳最优候选（违规候选已因低质量分被排到后面）
     adopted_name = ranking[0].agent_name if ranking else "decision_maker"
     adopted_decision = decisions.get(adopted_name, "")
 
-    # 演示模式 B2 兜底：采纳决策无违规时，注入自然激进话术
-    if req.demo_mode:
-        adopted_decision = _apply_demo_fallback(adopted_decision)
+    # 句级合规检测 + 拦截（在违规候选上，用于标红）
+    violations = []
+    if violated_agent:
+        violated_decision = decisions.get(violated_agent, "")
+        detection = detect_sensitive_sentences(violated_decision)
+        violations = detection["violations"]
+        if violations and collected:
+            await _record_interception(collected[0].task_id, violations)
 
-    # 句级合规检测 + 拦截（在采纳的决策上）
-    detection = detect_sensitive_sentences(adopted_decision)
-    violations = detection["violations"]
-    clean_decision = intercept_sentences(adopted_decision, violations)
-
-    # 记录拦截（复用 anomaly_events，compliance_violation 类型）
-    if violations and collected:
-        await _record_interception(collected[0].task_id, violations)
+    # 采纳的决策（合规）：最终输出直接用它；再做一次检测兜底（万一 B1 让它违规）
+    adopted_detection = detect_sensitive_sentences(adopted_decision)
+    adopted_violations = adopted_detection["violations"]
+    clean_decision = intercept_sentences(adopted_decision, adopted_violations)
+    if adopted_violations and collected:
+        await _record_interception(collected[0].task_id, adopted_violations)
 
     # LLM 语义合规审查（后置，兜底）
     compliance = review_compliance(adopted_decision, final_state.get("stock_name", "未知"))
+
+    # 监控摘要：合规拦截计入异常数
+    monitoring = _build_monitoring(collected, processed)
+    monitoring.anomaly_count += len(violations) + len(adopted_violations)
 
     return ChatResponse(
         query=query,
@@ -210,12 +225,17 @@ async def chat(req: ChatRequest) -> ChatResponse:
             fundamental_report=final_state.get("fundamental_report", ""),
             risk_report=final_state.get("risk_report", ""),
             decision=adopted_decision,
+            decision_value=decisions.get("value_investor", ""),
+            decision_trend=decisions.get("trend_trader", ""),
+            decision_balanced=decisions.get("decision_maker", ""),
+            adopted_agent=adopted_name,
+            violated_agent=violated_agent,
             compliance_result=compliance["result"],
-            compliance_score=detection["score"],
+            compliance_score=adopted_detection["score"],
             final_output=clean_decision,
             violations=[ViolationItem(**v) for v in violations],
         ),
-        monitoring=_build_monitoring(collected, processed),
+        monitoring=monitoring,
         demo_mode=req.demo_mode,
         feedback=feedback,
         ranking=[
@@ -272,15 +292,30 @@ async def _request_feedback(task_id: str) -> list[FeedbackItem]:
         return []
 
 
-def _apply_demo_fallback(decision: str) -> str:
-    """B2 兜底：若决策无违规，注入自然激进话术。"""
-    if detect_sensitive_sentences(decision)["violations"]:
-        return decision
-    return (decision + "\n\n" + DEMO_RADICAL_TEXT).strip()
+def _apply_demo_fallback(final_state: dict, collected: list) -> str:
+    """B2 兜底：若无候选违规，注入到 value_investor（价值投资），返回违规候选名。"""
+    # 检查三个候选是否已有违规（B1 是否触发）
+    for agent, key in (
+        ("value_investor", "decision_value"),
+        ("trend_trader", "decision_trend"),
+        ("decision_maker", "decision"),
+    ):
+        if detect_sensitive_sentences(final_state.get(key, ""))["violations"]:
+            return agent  # B1 已触发，返回违规候选
+    # 无违规 → 注入到 value_investor
+    decision = final_state.get("decision_value", "")
+    final_state["decision_value"] = (decision + "\n\n" + DEMO_RADICAL_TEXT).strip()
+    for trace in collected:
+        if trace.agent_name == "value_investor":
+            trace.output_content += "\n\n" + DEMO_RADICAL_TEXT
+    return "value_investor"
 
 
 def _rank_candidates(pipeline: MonitoringPipeline, processed: list) -> list:
-    """只对三个候选决策排序（异常过滤 → 质量排序 → 去重 → 推荐）。"""
+    """只对三个候选决策排序（异常过滤 → 质量排序 → 去重 → 推荐）。
+
+    合规分过低的候选（命中敏感词）直接剔除，不参与排序。
+    """
     candidates = [
         {
             "trace_id": p["trace"].trace_id,
@@ -291,6 +326,10 @@ def _rank_candidates(pipeline: MonitoringPipeline, processed: list) -> list:
         }
         for p in processed
         if p["trace"].agent_name in DECISION_AGENTS
+        and (
+            p["quality"].compliance is None
+            or p["quality"].compliance >= COMPLIANCE_FILTER_THRESHOLD
+        )
     ]
     return pipeline.optimizer.rank(candidates)
 

@@ -116,6 +116,11 @@ export interface AdvisoryReport {
   fundamental_report: string;
   risk_report: string;
   decision: string;
+  decision_value: string;
+  decision_trend: string;
+  decision_balanced: string;
+  adopted_agent: string;
+  violated_agent: string;
   compliance_result: string;
   compliance_score: number | null;
   final_output: string;
